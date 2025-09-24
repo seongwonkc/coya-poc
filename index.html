@@ -1,61 +1,67 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Choose Your American Adventure- By Patrick Kim </title>
-    <link rel="stylesheet" href="style.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" integrity="sha512-SnH5WK+bZxgPHs44uWIX+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkcmfRyVX3pBnMFcV7oQPJkl9QevSCWr3W6A==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Choose Your American Adventure — Prototype</title>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="header-container">
-        <h1>Choose Your American Adventure</h1>
-        <button id="new-game-btn" class="secondary-btn">Start a New Game</button>
+  <header>
+    <h1>Choose Your American Adventure</h1>
+    <div class="top-controls">
+      <button id="new-game-btn">New Game</button>
+      <button id="export-btn">Export Summary</button>
     </div>
+  </header>
 
-    <div id="character-creation">
-        <h2>Create Your Character</h2>
-        <p>Your starting circumstances are based on real-world statistics.</p>
-        
-        <div class="form-group">
-          <label for="name-input">Character Name:</label>
-          <input type="text" id="name-input" placeholder="Enter a name...">
-        </div>
+  <main>
+    <section id="character-creation" class="card">
+      <h2>Create your character</h2>
+      <label>
+        Name
+        <input id="name-input" placeholder="Frank" />
+      </label>
+      <label>
+        Race / Background
+        <select id="race-select">
+          <option value="">-- choose --</option>
+          <option value="white">White</option>
+          <option value="black">Black</option>
+          <option value="hispanic">Hispanic</option>
+          <option value="asian">Asian</option>
+          <option value="low_income">Low income (any race)</option>
+        </select>
+      </label>
+      <div class="controls">
+        <button id="create-character-btn">Start Game</button>
+      </div>
+      <p class="note">This is a deterministic, offline prototype. No external APIs used.</p>
+    </section>
 
-        <div class="form-group">
-          <label for="race-select">Select a Race:</label>
-          <select id="race-select">
-              <option value="white">White</option>
-              <option value="black">Black</option>
-              <option value="hispanic">Hispanic</option>
-              <option value="asian">Asian</option>
-          </select>
-        </div>
-        
-        <button id="create-character-btn">Begin Life</button>
-    </div>
+    <section id="game-container" class="card hidden">
+      <div class="stats">
+        <div>Age: <span id="stat-age">—</span></div>
+        <div>Health: <span id="stat-health">—</span></div>
+        <div>Wealth: <span id="stat-wealth">—</span></div>
+      </div>
 
-    <div id="game-container" class="hidden">
-        
-        <div id="status-bar">
-            <div><i class="fa-solid fa-cake-candles"></i> <strong>Age:</strong> <span id="stat-age">18</span></div>
-            <div><i class="fa-solid fa-heart-pulse"></i> <strong>Health:</strong> <span id="stat-health">100%</span></div>
-            <div><i class="fa-solid fa-sack-dollar"></i> <strong>Wealth:</strong> <span id="stat-wealth">$0</span></div>
-        </div>
-        
-        <div id="story-container"></div>
-        <div id="choice-container"></div>
-        
-        <div class="input-separator">
-            <span>OR</span>
-        </div>
-        
-        <div id="input-area">
-            <input type="text" id="user-input" placeholder="Type your own choice...">
-            <button id="send-button"><i class="fa-solid fa-paper-plane"></i> Send</button>
-        </div>
-    </div>
+      <div id="story-container" class="story"></div>
 
-    <script src="script.js" defer></script>
+      <div id="choice-container" class="choices"></div>
+
+      <div id="input-area" class="input-area">
+        <input id="user-input" placeholder="Type a custom intent (optional)..." />
+        <button id="send-button">Suggest choices</button>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <small>Prototype — deterministic rules & templates (no LLM). Built for teaching.</small>
+  </footer>
+
+  <script src="data.js"></script> <!-- small helper to put JSON in JS for easy local loading -->
+  <script src="script.js"></script>
 </body>
 </html>
