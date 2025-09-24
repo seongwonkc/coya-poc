@@ -1,22 +1,92 @@
-body { font-family: sans-serif; max-width: 600px; margin: 2rem auto; }
-#story-container { border: 1px solid #ccc; padding: 1rem; height: 400px; overflow-y: scroll; margin-bottom: 1rem; }
-#input-area { display: flex; }
-#user-input { flex-grow: 1; padding: 0.5rem; }
-#send-button { padding: 0.5rem 1rem; }
-/* Add this to style.css for better spacing */
-.fa-solid {
-  margin-right: 0.5rem;
+/* =================================
+   1. Font Import & Global Styles
+   ================================= */
+@import url('https://fonts.googleapis.com/css2?family=Lora:ital@0;1&family=Roboto:wght@400;700&display=swap');
+
+body {
+  font-family: 'Roboto', sans-serif;
+  background-color: #f8f9fa;
+  color: #343a40;
+  margin: 0;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
-.user-text { color: blue; }
-.ai-text { color: green; }
-/* Add to style.css */
+
+h1, h2 { font-weight: 700; }
+
+#character-creation, #game-container {
+  width: 100%;
+  max-width: 700px;
+  background-color: #ffffff;
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+}
+
+/* =================================
+   2. Character Creation Screen
+   ================================= */
+#character-creation {
+  padding: 2rem;
+  text-align: center;
+}
+#character-creation select, #character-creation button {
+  font-size: 1rem;
+  padding: 0.75rem 1.5rem;
+  margin-top: 1.5rem;
+  margin-left: 0.5rem;
+  border-radius: 5px;
+  border: 1px solid #ced4da;
+  cursor: pointer;
+}
+#create-character-btn {
+  background-color: #007bff;
+  color: white;
+  border-color: #007bff;
+}
+#create-character-btn:hover { background-color: #0056b3; }
+.secondary-btn {
+  background-color: #6c757d;
+  color: white;
+  border-color: #6c757d;
+}
+.secondary-btn:hover { background-color: #5a6268; }
+
+/* =================================
+   3. Main Game Screen
+   ================================= */
+.hidden { display: none; }
+#status-bar {
+  display: flex;
+  justify-content: space-around;
+  padding: 1rem;
+  background-color: #e9ecef;
+  border-bottom: 1px solid #dee2e6;
+  border-radius: 8px 8px 0 0;
+}
+#status-bar div { font-size: 1.1rem; }
+#story-container {
+  padding: 1.5rem;
+  height: 450px;
+  overflow-y: scroll;
+  border-bottom: 1px solid #dee2e6;
+  font-family: 'Lora', serif;
+  line-height: 1.6;
+}
+#story-container p { margin: 0 0 1rem 0; }
+.user-text {
+  color: #0056b3;
+  font-style: italic;
+}
+.ai-text { color: #343a40; }
 #choice-container {
   padding: 0 1.5rem 1.5rem 1.5rem;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
 }
-
 .choice-btn {
   width: 100%;
   padding: 0.75rem;
@@ -27,26 +97,39 @@ body { font-family: sans-serif; max-width: 600px; margin: 2rem auto; }
   border-radius: 5px;
   cursor: pointer;
 }
-
-.choice-btn:hover {
-  background-color: #5a6268;
+.choice-btn:hover { background-color: #5a6268; }
+.input-separator {
+  display: flex;
+  align-items: center;
+  text-align: center;
+  padding: 0 1.5rem;
+  color: #adb5bd;
 }
-
-/* Hide input-area when choices are shown */
-#input-area.hidden {
-  display: none;
+.input-separator::before,
+.input-separator::after {
+  content: '';
+  flex: 1;
+  border-bottom: 1px solid #dee2e6;
 }
-/* Add this to style.css */
-.secondary-btn {
-  background-color: #6c757d;
-  color: white;
-  border-color: #6c757d;
+.input-separator span { padding: 0 1rem; }
+#input-area {
+  display: flex;
+  padding: 1rem;
+}
+#user-input {
+  flex-grow: 1;
+  padding: 0.75rem;
+  border: 1px solid #ced4da;
+  border-radius: 5px 0 0 5px;
   font-size: 1rem;
+}
+#send-button {
   padding: 0.75rem 1.5rem;
-  margin-top: 1.5rem;
-  border-radius: 5px;
+  border: 1px solid #007bff;
+  background-color: #007bff;
+  color: white;
   cursor: pointer;
+  border-radius: 0 5px 5px 0;
+  font-size: 1rem;
 }
-.secondary-btn:hover {
-  background-color: #5a6268;
-}
+.fa-solid { margin-right: 0.5rem; }
