@@ -10,7 +10,7 @@ const sendButton = document.getElementById('send-button');
 const raceSelect = document.getElementById('race-select');
 const createCharacterBtn = document.getElementById('create-character-btn');
 const newGameBtn = document.getElementById('new-game-btn');
-const nameInput = document.getElementById('name-input'); // New name input
+const nameInput = document.getElementById('name-input');
 const statAge = document.getElementById('stat-age');
 const statHealth = document.getElementById('stat-health');
 const statWealth = document.getElementById('stat-wealth');
@@ -23,9 +23,10 @@ let isSimulatingChildhood = false;
 // ===================================================================================
 //  SECTION 2: DATA LOADING AND APP INITIALIZATION
 // ===================================================================================
-// ... (This section is unchanged)
+
 createCharacterBtn.disabled = true;
 createCharacterBtn.textContent = "Loading Data...";
+
 fetch('data.json')
   .then(response => {
     if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
@@ -40,7 +41,7 @@ fetch('data.json')
   })
   .catch(error => {
     console.error("Error loading the data file:", error);
-    alert("Could not load necessary game data.");
+    alert("Could not load necessary game data. Please check the console and ensure data.json exists.");
     createCharacterBtn.textContent = "Error Loading Data";
   });
 
@@ -52,16 +53,15 @@ fetch('data.json')
 createCharacterBtn.addEventListener('click', () => {
   const selectedRace = raceSelect.value;
   const stats = realWorldStats.race[selectedRace];
-  const characterName = nameInput.value.trim(); // Get name from input
+  const characterName = nameInput.value.trim();
 
-  // Add validation to make sure a name is entered
   if (!characterName) {
     alert("Please enter a name for your character.");
     return;
   }
 
   character = {
-    name: characterName, // Use the input name
+    name: characterName,
     race: selectedRace,
     age: 0,
     monthsPassed: 0,
@@ -87,29 +87,171 @@ createCharacterBtn.addEventListener('click', () => {
 });
 
 sendButton.addEventListener('click', async () => {
-    // ... (This function is unchanged)
+  if (isSimulatingChildhood) return;
+  const userAction = userInput.value;
+  if (!userAction) return;
+
+  const storyHistory = storyContainer.innerText;
+  storyContainer.innerHTML += `<p class="user-text"><strong>You:</strong> ${userAction}</p>`;
+  userInput.value = '';
+  sendButton.disabled = true;
+  choiceContainer.innerHTML = '';
+  storyContainer.innerHTML += `<p class="ai-text" id="thinking"><strong>Narrator:</strong> Thinking...</p>`;
+  storyContainer.scrollTop = storyContainer.scrollHeight;
+
+  const promptForAI = `
+    You are the Game Master for a text-based life simulator about systemic inequality.
+    
+    CHARACTER: Name: ${character.name}, Age: ${character.age}, Health: ${character.health}, Wealth: ${character.wealth}
+    SYSTEMIC FACTORS: Hiring Bias: ${character.multipliers.hiringBias}, Justice System Disadvantage: ${character.multipliers.justiceSystem}.
+    STORY SO FAR: ${storyHistory}
+    PLAYER'S ACTION: "${userAction}".
+
+    INSTRUCTIONS:
+    1. Advance the story with a realistic paragraph.
+    2. Determine consequences. Estimate how many months the action would take (e.g., applying to college takes 3-4 months).
+    3. Determine any changes to health or wealth.
+    4. Provide 3 clear choices for the player.
+
+    Respond ONLY with a valid JSON object in the format:
+    {
+      "storyText": "Your narrative paragraph here.",
+      "statChanges": { "durationMonths": 4, "health": 0, "wealth": -150 },
+      "choices": ["Choice A", "Choice B"]
+    }
+  `;
+
+  try {
+    const response = await fetch('/.netlify/functions/get-ai-response', { method: 'POST', body: JSON.stringify({ userInput: promptForAI }) });
+    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+    const data = await response.json();
+
+    document.getElementById('thinking').remove();
+    storyContainer.innerHTML += `<p class="ai-text"><strong>Narrator:</strong> ${data.storyText}</p>`;
+    
+    const duration = data.statChanges.durationMonths || 0;
+    character.monthsPassed += duration;
+    if (character.monthsPassed >= 12) {
+      character.age += Math.floor(character.monthsPassed / 12);
+      character.monthsPassed = character.monthsPassed % 12;
+    }
+    character.health += data.statChanges.health || 0;
+    character.wealth += data.statChanges.wealth || 0;
+    
+    updateStatus();
+    displayChoices(data.choices);
+
+    localStorage.setItem('lifeSimCharacter', JSON.stringify(character));
+    localStorage.setItem('lifeSimStory', storyContainer.innerHTML);
+
+  } catch (error) {
+    const thinkingP = document.getElementById('thinking');
+    if (thinkingP) thinkingP.textContent = "Error connecting to the storyteller. Please try again.";
+    console.error('Fetch error:', error);
+  } finally {
+    // THIS 'FINALLY' BLOCK FIXES THE BUG
+    sendButton.disabled = false;
+    userInput.focus();
+  }
 });
 
 newGameBtn.addEventListener('click', () => {
-    // ... (This function is unchanged)
+  if (confirm("Are you sure? Your progress will be lost.")) {
+    localStorage.removeItem('lifeSimCharacter');
+    localStorage.removeItem('lifeSimStory');
+    window.location.reload();
+  }
 });
 
 userInput.addEventListener('keydown', (event) => {
-    // ... (This function is unchanged)
+  if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
+    event.preventDefault();
+    sendButton.click();
+  }
 });
 
 // ===================================================================================
 //  SECTION 4: HELPER FUNCTIONS
 // ===================================================================================
+
 async function runChildhoodSimulation() {
-    // ... (This function is unchanged)
+  isSimulatingChildhood = true;
+  sendButton.disabled = true;
+  let summary = `Your story begins. You are born a ${character.race} individual named ${character.name}. You grew up ${character.isFromSingleParentHousehold ? 'in a single-parent household' : 'in a two-parent household'}.`;
+  storyContainer.innerHTML = `<p class="ai-text"><strong>Narrator:</strong> ${summary}</p><p class="ai-text"><strong>Narrator:</strong> Simulating formative years...</p>`;
+  updateStatus();
+
+  for (let i = 1; i <= 17; i++) {
+    character.age = i;
+    updateStatus();
+    await new Promise(resolve => setTimeout(resolve, 600));
+
+    const promptForChildhoodYear = `
+      A character named ${character.name} is now age ${character.age}. Their SYSTEMIC FACTORS are: School Funding: ${character.multipliers.schoolFunding}, Crime Exposure: ${character.multipliers.crimeExposure}.
+      Briefly narrate a key event for this year based on these factors.
+      CRUCIAL RULE: Do NOT mention the raw numbers. Use them to influence the story.
+      Respond ONLY with a valid JSON object: { "storyText": "...", "statChanges": { "health": 0, "wealth": 0 } }
+    `;
+    
+    try {
+      const response = await fetch('/.netlify/functions/get-ai-response', { method: 'POST', body: JSON.stringify({ userInput: promptForChildhoodYear }) });
+      if (!response.ok) continue;
+      const data = await response.json();
+      storyContainer.innerHTML += `<p class="ai-text"><strong>Age ${character.age}:</strong> ${data.storyText}</p>`;
+      character.health += data.statChanges.health || 0;
+      character.wealth += data.statChanges.wealth || 0;
+      storyContainer.scrollTop = storyContainer.scrollHeight;
+    } catch (error) {
+      console.error(`Error simulating age ${i}:`, error);
+    }
+  }
+
+  character.age = 18;
+  character.monthsPassed = 0;
+  updateStatus();
+  storyContainer.innerHTML += `<p class="ai-text"><strong>Narrator:</strong> You are now 18. Your childhood has shaped who you are. Based on your life so far, you must now make your first major decision.</p>`;
+  
+  userInput.value = "Present me with my first life choices based on my background.";
+  sendButton.click();
+  
+  isSimulatingChildhood = false;
+  localStorage.setItem('lifeSimCharacter', JSON.stringify(character));
+  localStorage.setItem('lifeSimStory', storyContainer.innerHTML);
 }
+
 function loadSavedGame() {
-    // ... (This function is unchanged)
+    const savedCharacter = localStorage.getItem('lifeSimCharacter');
+    const savedStory = localStorage.getItem('lifeSimStory');
+    if (savedCharacter && savedStory) {
+      console.log("Saved game found.");
+      character = JSON.parse(savedCharacter);
+      storyContainer.innerHTML = savedStory;
+      updateStatus();
+      creationScreen.classList.add('hidden');
+      gameContainer.classList.remove('hidden');
+      displayChoices([]);
+    }
 }
+
 function updateStatus() {
-    // ... (This function is unchanged)
+  statAge.textContent = character.age;
+  statHealth.textContent = Math.round(character.health) + '%';
+  statWealth.textContent = '$' + Math.round(character.wealth).toLocaleString();
 }
+
 function displayChoices(choices) {
-    // ... (This function is unchanged)
+  choiceContainer.innerHTML = '';
+  if (!choices || choices.length === 0) {
+    return;
+  }
+  choices.forEach(choice => {
+    const button = document.createElement('button');
+    button.textContent = choice;
+    button.classList.add('choice-btn');
+    button.addEventListener('click', () => {
+      userInput.value = choice;
+      sendButton.click();
+    });
+    choiceContainer.appendChild(button);
+  });
 }
