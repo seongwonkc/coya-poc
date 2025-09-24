@@ -18,7 +18,7 @@ const choiceContainer = document.getElementById('choice-container');
 
 let realWorldStats = {};
 let character = {};
-let isAwaitingInput = true; // Renamed for clarity
+let isAwaitingInput = true;
 
 // ===================================================================================
 //  SECTION 2: DATA LOADING AND APP INITIALIZATION
@@ -44,6 +44,7 @@ fetch('data.json')
     alert("Could not load necessary game data.");
     createCharacterBtn.textContent = "Error Loading Data";
   });
+
 
 // ===================================================================================
 //  SECTION 3: EVENT LISTENERS (The Core Logic)
@@ -85,23 +86,49 @@ createCharacterBtn.addEventListener('click', () => {
   runChildhoodSimulation();
 });
 
-sendButton.addEventListener('click', async () => {
+sendButton.addEventListener('click', () => {
   if (!isAwaitingInput) return;
-  const userAction = userInput.value;
-  if (!userAction) return;
+  const userActionText = userInput.value;
+  if (!userActionText) return;
+  takeTurn(userActionText);
+});
+
+newGameBtn.addEventListener('click', () => {
+  if (confirm("Are you sure you want to start a new game? Your current progress will be lost.")) {
+    localStorage.removeItem('lifeSimCharacter');
+    localStorage.removeItem('lifeSimStory');
+    window.location.reload();
+  }
+});
+
+userInput.addEventListener('keydown', (event) => {
+  if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
+    event.preventDefault();
+    sendButton.click();
+  }
+});
+
+// ===================================================================================
+//  SECTION 4: CORE GAME LOGIC & HELPER FUNCTIONS
+// ===================================================================================
+
+async function takeTurn(userAction) {
+  if (!isAwaitingInput) return;
 
   isAwaitingInput = false;
   sendButton.disabled = true;
   choiceContainer.innerHTML = '';
 
-  storyContainer.innerHTML += `<p class="user-text"><strong>You:</strong> ${userAction}</p>`;
+  if (userAction) {
+    storyContainer.innerHTML += `<p class="user-text"><strong>You:</strong> ${userAction}</p>`;
+  }
   userInput.value = '';
   storyContainer.innerHTML += `<p class="ai-text" id="thinking"><strong>Narrator:</strong> Thinking...</p>`;
   storyContainer.scrollTop = storyContainer.scrollHeight;
 
   const promptForAI = `
     You are the Game Master for a text-based life simulator about systemic inequality.
-    TONE: Grounded, gritty, and realistic. Avoid "feel-good" or heroic outcomes.
+    TONE: Grounded, gritty, and realistic. Avoid "feel-good" outcomes.
     CHARACTER BIOGRAPHY (Permanent facts):
     - Name: ${character.name}, Race: ${character.race}
     - Grew up ${character.background.isBelowPovertyLine ? 'below the poverty line.' : 'above the poverty line.'}
@@ -112,7 +139,7 @@ sendButton.addEventListener('click', async () => {
     INSTRUCTIONS:
     1. Write a narrative paragraph consistent with the BIOGRAPHY and TONE. The SYSTEMIC FACTORS must create tangible setbacks.
     2. Determine consequences. Estimate 'durationMonths'. Only increment 'age' if a year or more passes.
-    3. Provide 3 choices for the player.
+    3. Provide 3 choices that reflect the character's new, often more constrained, reality.
     CRUCIAL RULE: Do NOT tell stories of exceptional success. Model the typical, frustrating experience.
     Respond ONLY with a valid JSON object: { "storyText": "...", "statChanges": { "durationMonths": 0, "health": 0, "wealth": 0 }, "choices": ["...", "..."] }
   `;
@@ -146,41 +173,49 @@ sendButton.addEventListener('click', async () => {
     sendButton.disabled = false;
     userInput.focus();
   }
-});
-
-newGameBtn.addEventListener('click', () => {
-  if (confirm("Are you sure you want to start a new game? Your current progress will be lost.")) {
-    localStorage.removeItem('lifeSimCharacter');
-    localStorage.removeItem('lifeSimStory');
-    window.location.reload();
-  }
-});
-
-userInput.addEventListener('keydown', (event) => {
-  if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
-    event.preventDefault();
-    sendButton.click();
-  }
-});
-
-// ===================================================================================
-//  SECTION 4: HELPER FUNCTIONS
-// ===================================================================================
+}
 
 async function runChildhoodSimulation() {
   isAwaitingInput = false;
   sendButton.disabled = true;
-  // ... (Summary text and for loop are the same)
-  for (let i = 1; i <= 17; i++) { /* ... */ }
+  let summary = `Your story begins. You are born a ${character.race} individual named ${character.name}. You grew up ${character.isFromSingleParentHousehold ? 'in a single-parent household' : 'in a two-parent household'}.`;
+  storyContainer.innerHTML = `<p class="ai-text"><strong>Narrator:</strong> ${summary}</p><p class="ai-text"><strong>Narrator:</strong> Simulating formative years...</p>`;
+  updateStatus();
 
+  for (let i = 1; i <= 17; i++) {
+    character.age = i;
+    updateStatus();
+    await new Promise(resolve => setTimeout(resolve, 600));
+
+    const promptForChildhoodYear = `
+      A character named ${character.name} is now age ${character.age}.
+      Their SYSTEMIC FACTORS are: School Funding: ${character.multipliers.schoolFunding}, Crime Exposure: ${character.multipliers.crimeExposure}.
+      Briefly narrate a key event for this year based on these factors.
+      CRUCIAL RULE: Do NOT mention the raw numbers. Use them to influence the story.
+      Respond ONLY with a valid JSON object: { "storyText": "...", "statChanges": { "health": 0, "wealth": 0 } }
+    `;
+    
+    try {
+      const response = await fetch('/.netlify/functions/get-ai-response', { method: 'POST', body: JSON.stringify({ userInput: promptForChildhoodYear }) });
+      if (!response.ok) continue;
+      const data = await response.json();
+      storyContainer.innerHTML += `<p class="ai-text"><strong>Age ${character.age}:</strong> ${data.storyText}</p>`;
+      character.health += data.statChanges.health || 0;
+      character.wealth += data.statChanges.wealth || 0;
+      storyContainer.scrollTop = storyContainer.scrollHeight;
+    } catch (error) {
+      console.error(`Error simulating age ${i}:`, error);
+    }
+  }
+
+  // THIS IS THE CORRECTED TRANSITION
   character.age = 18;
   character.monthsPassed = 0;
   updateStatus();
   storyContainer.innerHTML += `<p class="ai-text"><strong>Narrator:</strong> You are now 18. Your childhood has shaped who you are. The first major decision of your adult life awaits.</p>`;
   
-  // Set the input value and click the main button to kick off the adult phase
-  userInput.value = "Present me with my first life choices based on my background.";
-  sendButton.click();
+  // Directly call the main turn function and wait for it to complete
+  await takeTurn("Present me with my first life choices based on my background.");
   
   localStorage.setItem('lifeSimCharacter', JSON.stringify(character));
 }
@@ -207,10 +242,6 @@ function updateStatus() {
   statWealth.textContent = '$' + Math.round(character.wealth).toLocaleString();
 }
 
-/**
- * Creates and displays clickable choice buttons.
- * This is the simplified, more robust version.
- */
 function displayChoices(choices) {
   choiceContainer.innerHTML = '';
   if (!choices || choices.length === 0) {
@@ -220,11 +251,9 @@ function displayChoices(choices) {
     const button = document.createElement('button');
     button.textContent = choice;
     button.classList.add('choice-btn');
-    // FIXED LOGIC: All buttons are now shortcuts for the main send button
     button.addEventListener('click', () => {
       if (!isAwaitingInput) return;
-      userInput.value = choice;
-      sendButton.click();
+      takeTurn(choice);
     });
     choiceContainer.appendChild(button);
   });
