@@ -1,0 +1,7 @@
+body { font-family: sans-serif; max-width: 600px; margin: 2rem auto; }
+#story-container { border: 1px solid #ccc; padding: 1rem; height: 400px; overflow-y: scroll; margin-bottom: 1rem; }
+#input-area { display: flex; }
+#user-input { flex-grow: 1; padding: 0.5rem; }
+#send-button { padding: 0.5rem 1rem; }
+.user-text { color: blue; }
+.ai-text { color: green; }
