@@ -105,14 +105,26 @@ sendButton.addEventListener('click', async () => {
 
   const promptForAI = `
     You are the Game Master for a text-based life simulator about systemic inequality.
-    The character's current stats are: Age ${character.age}, Health ${character.health}, Wealth ${character.wealth}.
-    The story so far is: "${storyHistory}".
+    
+    CHARACTER STATS:
+    - Age: ${character.age}, Health: ${character.health}, Wealth: ${character.wealth}
+
+    SYSTEMIC FACTORS (Use these to influence outcomes):
+    - Hiring Bias Multiplier: ${character.multipliers.hiringBias} (1.0 is baseline, <1.0 is a disadvantage)
+    - Justice System Disadvantage: ${character.multipliers.justiceSystem} (1.0 is baseline, >1.0 means higher risk of negative encounters)
+    - Medical Treatment Modifier: ${character.multipliers.medicalBias} (1.0 is baseline, <1.0 means less effective care)
+    - Family Support Chance: ${character.multipliers.familySupport} (A high number means they are more likely to need to support family financially)
+
+    STORY SO FAR:
+    ---
+    ${storyHistory}
+    ---
     The player's last action was: "${userAction}".
 
-    Based on this, do the following:
-    1. Advance the story with a short, engaging paragraph.
-    2. Determine the consequences. Change the character's stats (age, health, wealth). Age should usually increase by 0 or 1.
-    3. Provide 2-3 clear, distinct choices for the player to make next.
+    INSTRUCTIONS:
+    1. Based on the character's systemic factors, advance the story with a realistic paragraph. For example, if they 'apply for a job' with a low hiring multiplier, describe how they face rejection despite their qualifications. If they have a high justice disadvantage and are 'driving home,' they are more likely to be pulled over.
+    2. Determine the consequences and change the character's stats.
+    3. Provide 2-3 clear choices for the player.
 
     Respond ONLY with a valid JSON object in the format:
     {
