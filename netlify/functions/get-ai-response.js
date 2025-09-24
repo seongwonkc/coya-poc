@@ -1,39 +1,57 @@
-const { GoogleGenerativeAI } = require("@google/generative-ai");
+const { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } = require("@google/generative-ai");
 
 // Initialize the AI client with the secret API key
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
+// NEW: Define safety settings to allow discussion of sensitive topics
+const safetySettings = [
+  {
+    category: HarmCategory.HARM_CATEGORY_HARASSMENT,
+    threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+  },
+  {
+    category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+    threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+  },
+  {
+    category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+    threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+  },
+  {
+    category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+    threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+  },
+];
+
 exports.handler = async function (event, context) {
-  // Ensure we only process POST requests
   if (event.httpMethod !== "POST") {
     return { statusCode: 405, body: "Method Not Allowed" };
   }
 
   try {
-    // Get the detailed prompt that our frontend script will create
     const { userInput: promptFromFrontend } = JSON.parse(event.body);
 
-    // Select the AI model and set the key configuration for JSON output
     const model = genAI.getGenerativeModel({
       model: "gemini-1.5-flash",
       generationConfig: {
         response_mime_type: "application/json",
       },
+      safetySettings, // Apply the new safety settings here
     });
 
     const result = await model.generateContent(promptFromFrontend);
     const responseText = result.response.text();
 
-    // Pass the AI's JSON response directly back to the frontend
     return {
       statusCode: 200,
-      body: responseText, // This will be a string of JSON data
+      body: responseText,
     };
   } catch (error) {
     console.error("Error calling Gemini API:", error);
+    // Also return the error message in the response body for debugging
     return { 
       statusCode: 500, 
-      body: JSON.stringify({ error: "Error processing your request with the AI." }) 
+      body: JSON.stringify({ error: `Error from API: ${error.message}` }) 
     };
   }
 };
