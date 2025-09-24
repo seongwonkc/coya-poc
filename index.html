@@ -2,66 +2,93 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Choose Your American Adventure — Prototype</title>
-  <link rel="stylesheet" href="style.css">
+  <title>Choose Your American Adventure</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 0; background:#0e0e11; color:#f3f3f7; }
+    header { padding: 16px 20px; background:#15151b; border-bottom:1px solid #262635; }
+    .wrap { max-width: 960px; margin: 0 auto; padding: 20px; }
+    .row { display: grid; grid-template-columns: 1fr 320px; gap: 16px; }
+    #story-container { height: 60vh; overflow:auto; padding:12px; background:#12121a; border:1px solid #262635; border-radius:12px; }
+    .ai-text { margin: 12px 0; line-height: 1.5; }
+    .event-text { background:#171722; padding:8px 10px; border-radius:10px; border:1px solid #2a2a3a; }
+    #choice-container { display:flex; flex-wrap:wrap; gap:10px; margin-top:12px; }
+    .choice-btn { background:#2c2c48; color:#fff; border:1px solid #3b3b5a; padding:8px 10px; border-radius:10px; cursor:pointer; }
+    .choice-btn:hover { background:#3a3a5f; }
+    .panel { background:#12121a; border:1px solid #262635; border-radius:12px; padding:12px; }
+    .stat { display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px dashed #2a2a3a; }
+    .stat:last-child { border-bottom:none; }
+    .hidden { display:none; }
+    label { display:block; margin:10px 0 6px; }
+    input, select { width:100%; padding:8px; border-radius:8px; border:1px solid #2a2a3a; background:#0e0e14; color:#fff; }
+    button { background:#3a3a5f; color:#fff; border:1px solid #4b4b75; border-radius:10px; padding:10px 14px; cursor:pointer; }
+    button:hover { background:#4a4a78; }
+    #input-area { display:none; margin-top:10px; }
+  </style>
 </head>
 <body>
   <header>
-    <h1>Choose Your American Adventure</h1>
-    <div class="top-controls">
-      <button id="new-game-btn">New Game</button>
-      <button id="export-btn">Export Summary</button>
+    <div class="wrap">
+      <strong>Choose Your American Adventure</strong>
     </div>
   </header>
 
-  <main>
-    <section id="character-creation" class="card">
-      <h2>Create your character</h2>
-      <label>
-        Name
-        <input id="name-input" placeholder="Frank" />
-      </label>
-      <label>
-        Race / Background
-        <select id="race-select">
-          <option value="">-- choose --</option>
-          <option value="white">White</option>
-          <option value="black">Black</option>
-          <option value="hispanic">Hispanic</option>
-          <option value="asian">Asian</option>
-          <option value="low_income">Low income (any race)</option>
-        </select>
-      </label>
-      <div class="controls">
+  <div class="wrap">
+
+    <!-- Character creation -->
+    <div id="character-creation" class="panel">
+      <h2>New Game</h2>
+      <label for="name-input">Name</label>
+      <input id="name-input" placeholder="Frank" />
+
+      <label for="race-select">Background</label>
+      <select id="race-select">
+        <option value="black">Black</option>
+        <option value="white">White</option>
+        <option value="hispanic">Hispanic</option>
+        <option value="asian">Asian</option>
+        <option value="low_income">Low income</option>
+      </select>
+
+      <div style="margin-top:12px; display:flex; gap:10px;">
+        <!-- IMPORTANT: id must be create-character-btn -->
         <button id="create-character-btn">Start Game</button>
+        <button id="new-game-btn">Reset</button>
       </div>
-      <p class="note">This is a deterministic, offline prototype. No external APIs used.</p>
-    </section>
+    </div>
 
-    <section id="game-container" class="card hidden">
-      <div class="stats">
-        <div>Age: <span id="stat-age">—</span></div>
-        <div>Health: <span id="stat-health">—</span></div>
-        <div>Wealth: <span id="stat-wealth">—</span></div>
+    <!-- Game -->
+    <div id="game-container" class="hidden">
+      <div class="row">
+        <div>
+          <div id="story-container" class="panel"></div>
+          <div id="choice-container"></div>
+
+          <div id="input-area">
+            <label for="user-input">Type a shortcut (e.g. “job”, “college”, “substance”, “rehab”)</label>
+            <div style="display:flex; gap:8px;">
+              <input id="user-input" placeholder="job / college / apprentice / loan / mentor / police / health / housing / invest / rehab / diversion / expunge / probation / substance / theft" />
+              <button id="send-button">Go</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h3>Stats</h3>
+          <div class="stat"><span>Age</span><strong id="stat-age">—</strong></div>
+          <div class="stat"><span>Health</span><strong id="stat-health">—</strong></div>
+          <div class="stat"><span>Wealth</span><strong id="stat-wealth">—</strong></div>
+          <div style="margin-top:12px; display:flex; gap:8px;">
+            <button id="export-btn">Export Summary</button>
+          </div>
+        </div>
       </div>
+    </div>
 
-      <div id="story-container" class="story"></div>
+  </div>
 
-      <div id="choice-container" class="choices"></div>
-
-      <div id="input-area" class="input-area">
-        <input id="user-input" placeholder="Type a custom intent (optional)..." />
-        <button id="send-button">Suggest choices</button>
-      </div>
-    </section>
-  </main>
-
-  <footer>
-    <small>Prototype — deterministic rules & templates (no LLM). Built for teaching.</small>
-  </footer>
-
-  <script src="data.js"></script> <!-- small helper to put JSON in JS for easy local loading -->
+  <!-- Load data BEFORE the engine so GAME_DATA exists -->
+  <script src="data.js"></script>
   <script src="script.js"></script>
 </body>
 </html>
