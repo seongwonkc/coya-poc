@@ -54,6 +54,20 @@ h1, h2 { font-weight: 700; }
 }
 .secondary-btn:hover { background-color: #5a6268; }
 
+/* Add this to style.css in Section 2 */
+.form-group {
+  margin-bottom: 1rem;
+}
+.form-group label {
+  margin-right: 0.5rem;
+}
+#name-input {
+  padding: 0.5rem;
+  font-size: 1rem;
+  border: 1px solid #ced4da;
+  border-radius: 5px;
+}
+
 /* =================================
    3. Main Game Screen
    ================================= */
