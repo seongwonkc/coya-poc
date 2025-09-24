@@ -3,12 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Choose Your American Adventure</title>
+    <title>AI Life Simulator</title>
     <link rel="stylesheet" href="style.css">
-    <script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script>
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" integrity="sha512-SnH5WK+bZxgPHs44uWIX+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkcmfRyVX3pBnMFcV7oQPJkl9QevSCWr3W6A==" crossorigin="anonymous" referrerpolicy="no-referrer" />
 </head>
 <body>
-    <h1>Choose Your American Adventure</h1>
+    <h1>My AI Story</h1>
 
     <div id="character-creation">
         <h2>Create Your Character</h2>
@@ -30,6 +31,7 @@
         </div>
         
         <button id="create-character-btn">Begin Life</button>
+        <button id="new-game-btn" class="secondary-btn">Start New Game</button>
     </div>
 
     <div id="game-container" class="hidden">
@@ -38,25 +40,11 @@
             <div><i class="fa-solid fa-cake-candles"></i> <strong>Age:</strong> <span id="stat-age">18</span></div>
             <div><i class="fa-solid fa-heart-pulse"></i> <strong>Health:</strong> <span id="stat-health">100%</span></div>
             <div><i class="fa-solid fa-sack-dollar"></i> <strong>Wealth:</strong> <span id="stat-wealth">$0</span></div>
-            
             <button id="new-game-btn" class="secondary-btn">New Game</button>
         </div>
         
-        <div id="story-container">
-            </div>
-
-        <div id="choice-container"></div>
-        
-        <div class="input-separator">
-            <span>OR</span>
         </div>
-        
-        <div id="input-area">
-            <input type="text" id="user-input" placeholder="Type your own choice...">
-            <button id="send-button"><i class="fa-solid fa-paper-plane"></i> Send</button>
-        </div>
-    </div>
 
-    <script src="script.js"></script>
+    <script src="script.js" defer></script>
 </body>
 </html>
