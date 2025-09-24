@@ -9,3 +9,30 @@ body { font-family: sans-serif; max-width: 600px; margin: 2rem auto; }
 }
 .user-text { color: blue; }
 .ai-text { color: green; }
+/* Add to style.css */
+#choice-container {
+  padding: 0 1.5rem 1.5rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.choice-btn {
+  width: 100%;
+  padding: 0.75rem;
+  font-size: 1rem;
+  background-color: #6c757d;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.choice-btn:hover {
+  background-color: #5a6268;
+}
+
+/* Hide input-area when choices are shown */
+#input-area.hidden {
+  display: none;
+}
