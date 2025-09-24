@@ -80,5 +80,71 @@
       "propertyValueGrowth": 0.95,
       "familySupportChance": 0.4
     }
-  }
+  },
+  "events": [
+    {
+      "id": "lottery_win_small",
+      "text": "You find a discarded scratch-off ticket that turns out to be a winner!",
+      "chance": 0.001,
+      "statChanges": { "durationMonths": 0, "health": 5, "wealth": 1000 }
+    },
+    {
+      "id": "violent_crime_victim",
+      "text": "Walking home late one night, you are the victim of a robbery. The experience is terrifying and leaves you shaken, and you lose your wallet.",
+      "chance": 0.005,
+      "modifier": "crimeExposure",
+      "statChanges": { "durationMonths": 1, "health": -20, "wealth": -250 }
+    },
+    {
+      "id": "property_theft",
+      "text": "You return home to find your apartment has been broken into. Some of your valuables are gone.",
+      "chance": 0.02,
+      "modifier": "crimeExposure",
+      "statChanges": { "durationMonths": 0, "health": -5, "wealth": -1500 }
+    },
+    {
+      "id": "police_stop",
+      "text": "While driving, you are pulled over by the police. The encounter is tense and stressful, regardless of the outcome.",
+      "chance": 0.015,
+      "modifier": "justiceSystemDisadvantage",
+      "statChanges": { "durationMonths": 0, "health": -5, "wealth": -200 }
+    },
+    {
+      "id": "scholarship_adversity",
+      "text": "Because of the challenges you've overcome, you are awarded a special scholarship for disadvantaged students.",
+      "chance": 0.05,
+      "condition": "isPoor",
+      "statChanges": { "durationMonths": 0, "health": 10, "wealth": 5000 }
+    },
+    {
+      "id": "mental_health_struggle",
+      "text": "The constant pressure and stress of your situation have become overwhelming, leading to a period of deep depression and anxiety.",
+      "chance": 0.1,
+      "condition": "health_below_50",
+      "statChanges": { "durationMonths": 3, "health": -10, "wealth": 0 },
+      "choices": ["Seek therapy (costs money)", "Rely on friends and family", "Try to push through it alone"]
+    },
+    {
+      "id": "unexpected_bill",
+      "text": "A sudden, unexpected expense arrives: your car needs a major repair that isn't covered by insurance.",
+      "chance": 0.03,
+      "statChanges": { "durationMonths": 0, "health": -2, "wealth": -1200 }
+    },
+    {
+      "id": "promotion_opportunity",
+      "text": "A senior position opens up at your job. Your boss is considering you for the promotion.",
+      "chance": 0.02,
+      "modifier": "hiringBias",
+      "statChanges": { "durationMonths": 2, "health": 5, "wealth": 10000 },
+      "choices": ["Aggressively pursue the promotion", "Express interest but wait to be chosen"]
+    },
+    {
+      "id": "family_financial_crisis",
+      "text": "You receive a distressing call. A close family member is facing a severe financial emergency and asks if you can help them out.",
+      "chance": 0.08,
+      "modifier": "familySupport",
+      "statChanges": { "durationMonths": 1, "health": -5, "wealth": -2500 },
+      "choices": ["Send the money they need", "Offer a smaller amount", "Say you can't help right now"]
+    }
+  ]
 }
