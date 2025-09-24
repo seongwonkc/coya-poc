@@ -3,5 +3,9 @@ body { font-family: sans-serif; max-width: 600px; margin: 2rem auto; }
 #input-area { display: flex; }
 #user-input { flex-grow: 1; padding: 0.5rem; }
 #send-button { padding: 0.5rem 1rem; }
+/* Add this to style.css for better spacing */
+.fa-solid {
+  margin-right: 0.5rem;
+}
 .user-text { color: blue; }
 .ai-text { color: green; }
