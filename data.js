@@ -1,164 +1,229 @@
-// script.js — engine update: crime & substance systems, justice bias, new stats
-// Deterministic, offline. Works with updated data.js.
+// data.js — expanded, branching action catalog for deterministic prototype
+// No external APIs. This file is loaded by index.html before script.js.
 
-document.addEventListener('DOMContentLoaded', () => {
-  const creationScreen = document.getElementById('character-creation');
-  const gameContainer = document.getElementById('game-container');
-  const storyContainer = document.getElementById('story-container');
-  const choiceContainer = document.getElementById('choice-container');
-  const newGameBtn = document.getElementById('new-game-btn');
-  const exportBtn = document.getElementById('export-btn');
+window.GAME_DATA = {
 
-  const createCharacterBtn = document.getElementById('create-character-btn');
-  const nameInput = document.getElementById('name-input');
-  const raceSelect = document.getElementById('race-select');
+  races: {
+    white:   { label: "White",   seedOffset: 10, schoolFundingLevel: "high", hiringBias: 0.00, familySupportChance: 0.70, crimeExposure: "low",  incomeBracket: "middle" },
+    black:   { label: "Black",   seedOffset: 20, schoolFundingLevel: "mid",  hiringBias: 0.12, familySupportChance: 0.60, crimeExposure: "mid",  incomeBracket: "lower"  },
+    hispanic:{ label: "Hispanic",seedOffset: 30, schoolFundingLevel: "mid",  hiringBias: 0.08, familySupportChance: 0.60, crimeExposure: "mid",  incomeBracket: "lower"  },
+    asian:   { label: "Asian",   seedOffset: 40, schoolFundingLevel: "high", hiringBias: 0.02, familySupportChance: 0.75, crimeExposure: "low",  incomeBracket: "middle" },
+    low_income:{label: "Low income", seedOffset: 99, schoolFundingLevel: "low", hiringBias: 0.10, familySupportChance: 0.50, crimeExposure: "mid", incomeBracket: "low" }
+  },
 
-  const statAge = document.getElementById('stat-age');
-  const statHealth = document.getElementById('stat-health');
-  const statWealth = document.getElementById('stat-wealth');
+  // New schema for actions
+  // - requires (eligibility)
+  // - mods (systemic multipliers that nudge baseChance)
+  // - outcomes (weighted branching)
+  actions: {
+    // EDUCATION PATHS ------------------------------------------------------
+    take_SAT_prep: {
+      label: "Take low-cost SAT prep",
+      tags: ["school", "prep"],
+      baseChance: 0.9,
+      cost: { wealth: 150 },
+      requires: { age_min: 15, age_max: 19 },
+      mods: { schoolFundingLevel: +0.05, familySupportChance: +0.05 },
+      outcomes: [
+        { id: "gain", chance: 0.7, text: "Focused study lifts your test readiness.", effects: { academicPerformance: 3 } },
+        { id: "meh",  chance: 0.2, text: "You pick up some tips but struggle to practice consistently.", effects: { academicPerformance: 1 } },
+        { id: "fail", chance: 0.1, text: "Family obligations and work leave little time to prep.", effects: { academicPerformance: 0, health: -1 } }
+      ]
+    },
 
-  const inputArea = document.getElementById('input-area');
-  const userInput = document.getElementById('user-input');
-  const sendButton = document.getElementById('send-button');
+    join_AP_program: {
+      label: "Join AP / Honors course",
+      tags: ["school"],
+      baseChance: 0.7,
+      requires: { age_min: 14, age_max: 18 },
+      mods: { schoolFundingLevel: +0.1 },
+      outcomes: [
+        { id: "succeed", chance: 0.65, text: "You handle the rigor and earn credit.", effects: { academicPerformance: 4 } },
+        { id: "struggle", chance: 0.25, text: "The workload is heavy; you pass but with stress.", effects: { academicPerformance: 1, health: -2 } },
+        { id: "denied", chance: 0.10, text: "Scheduling and prerequisites block placement.", effects: { } }
+      ]
+    },
 
-  const actions = GAME_DATA.actions;
-  const races = GAME_DATA.races;
-  const templates = GAME_DATA.templates || { childhood: {} };
+    apply_community_college: {
+      label: "Apply to community college",
+      tags: ["college"],
+      baseChance: 0.9,
+      cost: { wealth: 50 },
+      requires: { age_min: 17 },
+      outcomes: [
+        { id: "accepted", chance: 0.85, text: "Accepted with placement testing required.", effects: { durationMonths: 12, academicPerformance: 2 }, flags_set: { education: "cc_enrolled" } },
+        { id: "waitlist", chance: 0.1, text: "Program waitlisted; you attend part-time.", effects: { durationMonths: 6, academicPerformance: 1 }, flags_set: { education: "cc_part_time" } },
+        { id: "rejected", chance: 0.05, text: "Administrative hurdles delay enrollment.", effects: { } }
+      ]
+    },
 
-  // RNG
-  function mulberry32(a){return function(){var t=a+=0x6D2B79F5;t=Math.imul(t^t>>>15,t|1);t^=t+Math.imul(t^t>>>7,t|61);return((t^t>>>14)>>>0)/4294967296}}
-  let rng = Math.random; function roll(){return rng();}
+    transfer_to_state: {
+      label: "Transfer from CC to state university",
+      tags: ["college"],
+      baseChance: 0.6,
+      cost: { wealth: 100 },
+      requires: { age_min: 18, flags_all: ["education:cc_enrolled"] },
+      mods: { academicPerformance: +0.05 },
+      outcomes: [
+        { id: "accepted_scholar", chance: 0.25, text: "Accepted with modest scholarship.", effects: { wealth: -2000, academicPerformance: 3, durationMonths: 12 }, flags_set: { education: "state_university" } },
+        { id: "accepted", chance: 0.45, text: "Accepted without aid; you piece together work-study.", effects: { wealth: -4000, durationMonths: 12 }, flags_set: { education: "state_university" } },
+        { id: "denied", chance: 0.30, text: "Credits don’t transfer cleanly; application denied.", effects: { } }
+      ]
+    },
 
-  let character = null;
+    apply_state_university: {
+      label: "Apply to state university",
+      tags: ["college"],
+      baseChance: 0.65,
+      cost: { wealth: 200 },
+      requires: { age_min: 17 },
+      mods: { hiringBias: -0.05, schoolFundingLevel: +0.05 },
+      outcomes: [
+        { id: "accept_scholar", chance: 0.25, text: "Accepted with need-based grant.", effects: { durationMonths: 12, wealth: -1000, academicPerformance: 4 }, flags_set: { education: "state_university" } },
+        { id: "accept", chance: 0.35, text: "Accepted; tuition will stretch your budget.", effects: { durationMonths: 12, wealth: -3000 }, flags_set: { education: "state_university" } },
+        { id: "reject", chance: 0.40, text: "Rejected; you reassess your path.", effects: { } }
+      ]
+    },
 
-  function append(html, cls='ai-text'){const p=document.createElement('div');p.className=cls;p.innerHTML=html;storyContainer.appendChild(p);storyContainer.scrollTop=storyContainer.scrollHeight;}
-  function clearChoices(){choiceContainer.innerHTML='';}
-  function renderStats(){if(!character)return; statAge.textContent=character.age; statHealth.textContent=Math.round(character.health); statWealth.textContent=`$${Math.round(character.wealth).toLocaleString()}`;}
-  function save(){try{localStorage.setItem('lifeSimCharacter',JSON.stringify(character));localStorage.setItem('lifeSimStory',storyContainer.innerHTML);}catch(e){}}
-  function load(){try{const s=localStorage.getItem('lifeSimCharacter');if(!s)return false;character=JSON.parse(s);storyContainer.innerHTML=localStorage.getItem('lifeSimStory')||'';rng=mulberry32((Date.parse(character.id)&0xffffffff)^(character.multipliers?.seedOffset||0));renderStats();creationScreen.classList.add('hidden');gameContainer.classList.remove('hidden');return true;}catch(e){return false}}
+    apply_private_elite: {
+      label: "Apply to elite private university",
+      tags: ["college"],
+      baseChance: 0.28,
+      cost: { wealth: 500 },
+      requires: { age_min: 17 },
+      mods: { familySupportChance: +0.05 },
+      outcomes: [
+        { id: "accept_full_need", chance: 0.12, text: "Accepted with strong need-based aid.", effects: { durationMonths: 12, wealth: -1500, academicPerformance: 6 }, flags_set: { education: "elite_university" } },
+        { id: "accept_no_aid",  chance: 0.18, text: "Accepted but aid is limited; finances will be tight.", effects: { durationMonths: 12, wealth: -12000, academicPerformance: 4 }, flags_set: { education: "elite_university" } },
+        { id: "reject", chance: 0.70, text: "Rejected; you consider other options.", effects: {} }
+      ]
+    },
 
-  function createBaseCharacter(name,raceKey){const r=races[raceKey]||races.white;const seed=(Date.now()&0xffffffff)^(r.seedOffset||0);rng=mulberry32(seed);return{ id:`char_${Date.now()}`, name, race:raceKey, age:18, monthsPassed:0, health:100, wealth:500, academicPerformance:0, addiction:0, flags:{}, multipliers:{...r}, memory:{ household:{ guardians:'two-parent', employment: r.incomeBracket==='low'?'min_wage':'salaried', income_bracket:r.incomeBracket||'middle', housing: r.incomeBracket==='low'?'rental':'owned'}, schooling:{ elem_funding:r.schoolFundingLevel, middle_funding:r.schoolFundingLevel, high_funding:r.schoolFundingLevel, ap_access:r.schoolFundingLevel==='high', tracking:'standard' }, health:{ coverage: r.incomeBracket==='low'?'medicaid':'employer', chronic_conditions:[] }, neighborhood:{ crime:r.crimeExposure||'mid', policing_pressure: r.crimeExposure==='high'?'high':'mid' }, social:{ enrichment_access:r.schoolFundingLevel==='high'?'rich':'limited', networks:[] }, timeline:[] } } }
+    enlist_military: {
+      label: "Enlist in the military",
+      tags: ["career"],
+      baseChance: 0.85,
+      requires: { age_min: 17 },
+      outcomes: [
+        { id: "enlist", chance: 0.8, text: "You enlist and receive training; GI benefits open future education paths.", effects: { durationMonths: 12, health: -2, wealth: 1500 }, flags_set: { veteran: true } },
+        { id: "medical_disq", chance: 0.2, text: "Medical screening leads to disqualification.", effects: { } }
+      ]
+    },
 
-  // Childhood (same as earlier deterministic templates)
-  const phases=[{label:'PreK',start:0,end:4},{label:'Elementary',start:5,end:10},{label:'Middle',start:11,end:13},{label:'High',start:14,end:17}];
-  function renderTemplate(str,ctx){return (str||'').replace(/\{\{(\w+)\}\}/g,(m,k)=>ctx[k]??'');}
-  function buildPhaseCtx(){const m=character.multipliers,mem=character.memory;const schoolQ=m.schoolFundingLevel==='high'?'well‑resourced':(m.schoolFundingLevel==='mid'?'moderately resourced':'under‑resourced');return{ name:character.name, early_quality:m.schoolFundingLevel==='high'?'a rich early learning environment':(m.schoolFundingLevel==='mid'?'a modest early environment':'limited early exposure'), household_desc:`${mem.household.employment} guardians in a ${mem.household.income_bracket}-income household`, health_desc: mem.health.coverage==='medicaid'?'Medicaid coverage with delays':'employer/private coverage', literacy: (roll()<0.6)?'showed early interest in books':'had uneven practice', nutrition: m.schoolFundingLevel==='low'?'often budget-constrained':'adequate overall', neighborhood: mem.neighborhood.crime==='low'?'a relatively safe neighborhood':'a neighborhood with safety concerns', overall: (m.schoolFundingLevel==='high'||mem.household.income_bracket==='middle')?'progressed well':'faced constraints', class_size: m.schoolFundingLevel==='high'?'small (≈18)':(m.schoolFundingLevel==='mid'?'medium (22–26)':'large (28+)'), teacher_quality: roll()<0.6?'strong mentoring from a teacher':'limited individual attention', extras: mem.social.enrichment_access==='rich'?'clubs and private lessons':'few affordable options', tracking:'standard', tests:'standardized tests shaped priorities', school_quality: schoolQ, middle_quality: schoolQ, peers: roll()<0.7?'supportive peers':'mixed peer climate', counsel: roll()<0.5?'counseling helped at times':'limited counseling', timepress:'some family obligations plus homework', high_quality: schoolQ, ap: mem.schooling.ap_access?'AP/honors available':'limited AP access', work: roll()<0.4?'part‑time work during school':'no steady job during school', guidance: roll()<0.6?'useful guidance counseling':'under‑resourced guidance', internship: roll()<0.15?'a brief internship/job‑shadow':'no internship access', policing: mem.neighborhood.policing_pressure==='high'?'heightened police presence':'typical policing' } }
-  function runChildhoodPhases(){append(`<strong>Beginning childhood simulation for ${character.name}...</strong>`, 'ai-text event-text');for(const ph of phases){character.age=ph.start;renderStats();const ctx=buildPhaseCtx();const t=(templates.childhood||{})[ph.label]||'';const para=renderTemplate(t,ctx);let healthDelta=0,wealthDelta=0,acadDelta=0;const fund=character.multipliers.schoolFundingLevel;if(fund==='low'){acadDelta-=2;healthDelta-=1}else if(fund==='high'){acadDelta+=2;wealthDelta+=200} if(character.memory.household.income_bracket==='low'){wealthDelta-=400;acadDelta-=1} if(roll()< (0.12+(fund==='low'?0.08:0))){character.memory.timeline.push({phase:ph.label,event:'hardship',desc:'Family financial shock.'});wealthDelta-=800;acadDelta-=1} character.health+=healthDelta;character.wealth+=wealthDelta;character.academicPerformance+=acadDelta;append(`<strong>${ph.label} (${ph.start}–${ph.end}):</strong> ${para}`,'ai-text');character.memory.timeline.push({phase:ph.label,age_range:`${ph.start}-${ph.end}`,summary:para.slice(0,140)});character.age=ph.end+1; save();} append('<strong>Childhood complete — adulthood begins.</strong>','ai-text event-text'); inputArea.style.display='block'; presentTurnChoices(); }
+    // WORK & FINANCE -------------------------------------------------------
+    take_entry_job: {
+      label: "Take an entry-level job",
+      tags: ["job"],
+      baseChance: 0.9,
+      outcomes: [
+        { id: "steady", chance: 0.75, text: "You find steady work and begin saving.", effects: { durationMonths: 6, wealth: 2200 } },
+        { id: "temp",   chance: 0.25, text: "Inconsistent temp shifts; income is sporadic.", effects: { durationMonths: 3, wealth: 500, health: -1 } }
+      ]
+    },
 
-  // ===== ACTION ENGINE with justice & substance effects =====
-  function flag(key){return !!character.flags[key];}
-  function setFlags(obj){ if(!obj) return; for(const k of Object.keys(obj)){ character.flags[k]=obj[k]; } }
-  function flagKeyVal(spec){ const [k,v]=spec.split(':'); return [k, v==="true"?true:(v==="false"?false:v)]; }
-  function satisfiesRequires(req={}){
-    if(req.age_min!==undefined && character.age<req.age_min) return false;
-    if(req.age_max!==undefined && character.age>req.age_max) return false;
-    if(req.wealth_min!==undefined && character.wealth<req.wealth_min) return false;
-    if(req.flags_all){ for(const spec of req.flags_all){ const [k,v]=flagKeyVal(spec); if((character.flags[k]??null)!==v) return false; } }
-    if(req.flags_any){ let ok=false; for(const spec of req.flags_any){ const [k,v]=flagKeyVal(spec); if((character.flags[k]??null)===v || ((v===undefined)&&flag(k))) { ok=true; break; } } if(!ok) return false; }
-    if(req.flags_not){ for(const spec of req.flags_not){ const [k,v]=flagKeyVal(spec); if((character.flags[k]??null)===v) return false; } }
-    return true;
-  }
+    join_union_apprentice: {
+      label: "Join a union apprenticeship",
+      tags: ["job", "trade"],
+      baseChance: 0.55,
+      requires: { age_min: 18 },
+      outcomes: [
+        { id: "placed", chance: 0.5, text: "You’re placed with a crew; wages and training ramp up.", effects: { durationMonths: 12, wealth: 4000 }, flags_set: { trade: true } },
+        { id: "waitlist", chance: 0.35, text: "Long waitlist delays placement.", effects: { durationMonths: 6 } },
+        { id: "not_accepted", chance: 0.15, text: "You’re not selected this cycle.", effects: {} }
+      ]
+    },
 
-  function systemicChanceMods(a, base){
-    let p=base;
-    // Hiring bias lowers job chances
-    if(a.tags?.includes('job')) p*= (1 - (character.multipliers.hiringBias||0));
-    // Justice disadvantage: make negative justice outcomes more likely
-    if(a.tags?.includes('justice')) p+= (character.multipliers.justiceSystemDisadvantage||0)*-0.05; // baseline nudge
-    // Substance use makes many actions harder
-    if(character.addiction>=30 && (a.tags?.includes('job')||a.tags?.includes('college'))) p-=0.05;
-    if(character.addiction>=60 && (a.tags?.includes('job')||a.tags?.includes('college'))) p-=0.1;
+    start_side_hustle: {
+      label: "Start a side hustle",
+      tags: ["finance"],
+      baseChance: 0.7,
+      outcomes: [
+        { id: "grow", chance: 0.4, text: "Word-of-mouth builds a steady client base.", effects: { wealth: 1200 } },
+        { id: "break_even", chance: 0.4, text: "You cover costs but growth is slow.", effects: { wealth: 0 } },
+        { id: "loss", chance: 0.2, text: "Costs outpace demand this season.", effects: { wealth: -400 } }
+      ]
+    },
 
-    // Custom mods from data
-    if(a.mods){
-      const mods=a.mods;
-      if(mods.schoolFundingLevel){ const lvl=character.multipliers.schoolFundingLevel; const delta=mods.schoolFundingLevel; if(lvl==='high') p+=0.05*delta; else if(lvl==='mid') p+=0.02*delta; else p+=-0.03*delta; }
-      if(mods.familySupportChance){ p+= 0.1*mods.familySupportChance*(character.multipliers.familySupportChance||0); }
-      if(mods.hiringBias){ p+= (-(character.multipliers.hiringBias||0))*Math.abs(mods.hiringBias); }
-      if(mods.crimeExposure){ p+= (character.multipliers.crimeExposure==='high'?0.05:0.0)*mods.crimeExposure; }
-      if(mods.medicalTreatmentModifier){ p+= (character.multipliers.medicalTreatmentModifier||0)*mods.medicalTreatmentModifier; }
-      if(mods.academicPerformance){ p+= (character.academicPerformance/20)*mods.academicPerformance; }
+    save_and_invest: {
+      label: "Save and invest a portion of income",
+      tags: ["finance"],
+      baseChance: 0.8,
+      outcomes: [
+        { id: "up", chance: 0.7, text: "Savings grow slowly.", effects: { wealth: 1200 } },
+        { id: "down", chance: 0.3, text: "A downturn dents your small holdings.", effects: { wealth: -300 } }
+      ]
+    },
+
+    take_student_loan: {
+      label: "Take a student loan",
+      tags: ["finance", "college"],
+      baseChance: 0.95,
+      requires: { flags_any: ["education:state_university", "education:elite_university"] },
+      outcomes: [
+        { id: "approved", chance: 0.9, text: "Loan approved; tuition and living costs covered this term.", effects: { wealth: 6000 } },
+        { id: "small",    chance: 0.1, text: "Partial approval covers only tuition.", effects: { wealth: 3000 } }
+      ]
+    },
+
+    // HOUSING / HEALTH / JUSTICE -----------------------------------------
+    face_housing_shock: {
+      label: "Unexpected housing cost",
+      tags: ["housing"],
+      baseChance: 0.6,
+      outcomes: [
+        { id: "repair", chance: 0.5, text: "Urgent repair drains savings.", effects: { wealth: -800 } },
+        { id: "eviction_scare", chance: 0.3, text: "Late rent notice; you catch up with help.", effects: { wealth: -400 }, flags_set: { eviction_flag: true } },
+        { id: "ok", chance: 0.2, text: "You avoid major costs this time.", effects: {} }
+      ]
+    },
+
+    health_crisis: {
+      label: "Health crisis",
+      tags: ["health"],
+      baseChance: 0.3,
+      mods: { medicalTreatmentModifier: -0.05 },
+      outcomes: [
+        { id: "bill", chance: 0.5, text: "Emergency visit leads to bills and missed work.", effects: { wealth: -1200, health: -6, durationMonths: 1 } },
+        { id: "recover", chance: 0.35, text: "You recover with minor costs.", effects: { health: -2 } },
+        { id: "minor", chance: 0.15, text: "A scare, but no major impact.", effects: {} }
+      ]
+    },
+
+    stop_and_frisk: {
+      label: "Police stop",
+      tags: ["justice"],
+      baseChance: 0.25,
+      mods: { crimeExposure: +0.1 },
+      outcomes: [
+        { id: "warning", chance: 0.7, text: "You’re stopped and questioned; released with a warning.", effects: { health: -1 } },
+        { id: "citation", chance: 0.25, text: "You receive a citation; it complicates finances.", effects: { wealth: -200 } },
+        { id: "arrest", chance: 0.05, text: "Arrested and released; records may affect opportunities.", effects: { health: -3 }, flags_set: { record: true } }
+      ]
+    },
+
+    // NETWORKS / GUIDANCE --------------------------------------------------
+    seek_mentor: {
+      label: "Seek a mentor",
+      tags: ["network"],
+      baseChance: 0.6,
+      mods: { familySupportChance: +0.1 },
+      outcomes: [
+        { id: "found", chance: 0.5, text: "A mentor offers guidance and connections.", effects: { academicPerformance: 2 }, flags_set: { mentor: true } },
+        { id: "try_again", chance: 0.35, text: "Conversations help, but no long-term fit yet.", effects: { } },
+        { id: "none", chance: 0.15, text: "You struggle to find someone with time and alignment.", effects: { } }
+      ]
+    },
+
+    // CLEANUP / LIFE MGMT --------------------------------------------------
+    manage_debt: {
+      label: "Restructure or pay down debt",
+      tags: ["finance"],
+      baseChance: 0.7,
+      requires: { flags_any: ["eviction_flag", "record", "education:state_university", "education:elite_university"] },
+      outcomes: [
+        { id: "plan", chance: 0.6, text: "You set a realistic plan and cut interest costs.", effects: { wealth: 400 } },
+        { id: "setback", chance: 0.4, text: "Bills pile up; progress is slow.", effects: { wealth: -200 } }
+      ]
     }
-    return Math.max(0.05, Math.min(0.95, p));
   }
-
-  function weightedPick(outcomes){ let r=roll(); let cum=0; for(const o of outcomes){ cum+=o.chance; if(r<=cum) return o; } return outcomes[outcomes.length-1]; }
-
-  // Post-turn systemic drips (addiction drain, policing exposure, relapse/overdose risk)
-  function postTurnRisks(){
-    let notes=[];
-    // Addiction passive effects
-    if(character.addiction>=20){ const drain = character.addiction>=60? -4 : (character.addiction>=40? -2 : -1); character.health+=drain; if(drain<0) notes.push(`Health ${drain}`); character.wealth += (character.addiction>=40? -50 : -20); }
-    // Overdose emergency (rare; higher with high addiction & medical access)
-    const odBase = (character.addiction>=70)? 0.06 : (character.addiction>=50? 0.02 : 0.0);
-    if(roll()<odBase){ character.health -= 12; character.wealth -= 400; character.memory.timeline.push({phase:'Adult', event:'overdose_emergency'}); append(`<strong>Emergency:</strong> Overdose scare leads to hospital bills and recovery time.`,'ai-text event-text'); }
-    // Random police contact if record or high crime exposure
-    const policeP = (character.flags.record?0.06:0.02) + (character.multipliers.crimeExposure==='high'?0.03:0);
-    if(roll()<policeP){ append(`<strong>Encounter:</strong> A police stop adds stress and time lost.`,'ai-text event-text'); character.health -= 1; }
-    if(notes.length){ append(`<small>Ongoing effects: ${notes.join(', ')}</small>`,'ai-text'); }
-  }
-
-  function presentTurnChoices(){
-    clearChoices();
-    const elig = Object.entries(actions).filter(([id,a])=>satisfiesRequires(a.requires||{}));
-    if(elig.length===0){ append('No eligible actions right now. Try working to build resources.','ai-text event-text'); return; }
-    append('<em>Choose an action:</em>','ai-text event-text');
-    // Prioritize diversity of tags, but bias toward support if addiction/record present
-    const prioritized = [];
-    const wantSupport = (character.addiction>=30)||character.flags.record;
-    const tagOrder = wantSupport ? ['substance','justice','job','college','finance','health','housing','network','trade','school'] : ['job','college','finance','school','network','health','housing','justice','substance','trade'];
-    for(const tag of tagOrder){
-      const found = elig.find(([id,a])=>a.tags?.includes(tag));
-      if(found && !prioritized.some(x=>x[0]===found[0])) prioritized.push(found);
-      if(prioritized.length>=6) break;
-    }
-    for(const [id,a] of prioritized){ const btn=document.createElement('button'); btn.className='choice-btn'; btn.textContent=a.label; btn.onclick=()=>resolveAction(id); choiceContainer.appendChild(btn); }
-  }
-
-  function resolveAction(actionId){
-    const a=actions[actionId]; if(!a) return;
-    // upfront costs
-    if(a.cost){ character.wealth+=(a.cost.wealth||0)*-1; character.health+=(a.cost.health||0)*-1; }
-
-    // Compute baseline (used for display only; outcomes themselves are weightedPick)
-    const p = systemicChanceMods(a, a.baseChance||0.5);
-
-    // Pick weighted outcome
-    const out = weightedPick(a.outcomes||[{id:'neutral',chance:1,text:'Nothing much happens.',effects:{}}]);
-
-    // Apply effects (including addiction delta if present)
-    const fx = out.effects||{};
-    if(fx.durationMonths){ character.monthsPassed+=fx.durationMonths; while(character.monthsPassed>=12){ character.age++; character.monthsPassed-=12; } }
-    if(typeof fx.health==='number') character.health += fx.health;
-    if(typeof fx.wealth==='number') character.wealth += fx.wealth;
-    if(typeof fx.academicPerformance==='number') character.academicPerformance += fx.academicPerformance;
-    if(typeof fx.addiction==='number') character.addiction = Math.max(0, Math.min(100, character.addiction + fx.addiction));
-
-    if(out.flags_set) setFlags(out.flags_set);
-
-    // Record + narrate
-    append(`<strong>Action — ${a.label}:</strong> ${out.text} <br><small>Baseline chance: ${(p*100).toFixed(0)}%</small>`, 'ai-text event-text');
-    character.memory.timeline.push({ phase:'Adult', age:character.age, action:actionId, outcome:out.id, text:out.text, addiction:character.addiction, flags:{...character.flags} });
-
-    renderStats();
-    postTurnRisks();
-    save();
-    presentTurnChoices();
-  }
-
-  // Export / New game / Create
-  exportBtn?.addEventListener('click',()=>{ if(!character) return; const obj={ name:character.name,race:character.race,age:character.age,health:character.health,wealth:character.wealth,acad:character.academicPerformance,addiction:character.addiction,flags:character.flags,timeline:character.memory.timeline }; const blob=new Blob([JSON.stringify(obj,null,2)],{type:'application/json'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`${character.name}_summary.json`; a.click(); URL.revokeObjectURL(url); });
-  newGameBtn?.addEventListener('click',()=>{ if(confirm('Start a new game?')){ localStorage.clear(); location.reload(); }});
-
-  createCharacterBtn?.addEventListener('click',()=>{
-    const nm=(nameInput.value||'Frank').trim(); const race=raceSelect.value||'black';
-    character=createBaseCharacter(nm,race);
-    rng=mulberry32((Date.now()&0xffffffff)^(character.multipliers.seedOffset||0));
-    creationScreen.classList.add('hidden'); gameContainer.classList.remove('hidden'); storyContainer.innerHTML=''; renderStats(); save();
-    runChildhoodPhases();
-  });
-
-  if(!load()) { creationScreen.classList.remove('hidden'); gameContainer.classList.add('hidden'); } else { inputArea.style.display='block'; presentTurnChoices(); }
-
-  sendButton?.addEventListener('click',()=>{ const txt=(userInput.value||'').toLowerCase(); userInput.value=''; const map={ 'college':'apply_state_university', 'community':'apply_community_college', 'job':'take_entry_job', 'apprentice':'join_union_apprentice', 'loan':'take_student_loan', 'mentor':'seek_mentor', 'police':'stop_and_frisk', 'health':'health_crisis', 'housing':'face_housing_shock', 'invest':'save_and_invest', 'rehab':'seek_rehab', 'diversion':'diversion_program', 'expunge':'record_expungement', 'probation':'probation_checkin', 'substance':'experiment_substance', 'theft':'petty_offense_steal'}; const key=Object.keys(map).find(k=>txt.includes(k)); if(key){ resolveAction(map[key]); } else { append('Try: college, community, job, apprentice, loan, mentor, police, health, housing, invest, rehab, diversion, expunge, probation, substance, theft.','ai-text event-text'); } });
-});
+};

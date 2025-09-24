@@ -21,9 +21,12 @@ document.addEventListener('DOMContentLoaded', () => {
   const userInput = document.getElementById('user-input');
   const sendButton = document.getElementById('send-button');
 
-  const actions = GAME_DATA.actions;
-  const races = GAME_DATA.races;
-  const templates = GAME_DATA.templates || { childhood: {} };
+const GAME_DATA_REF = window.GAME_DATA;
+if (!GAME_DATA_REF) { throw new Error('GAME_DATA did not load'); }
+
+const actions = GAME_DATA_REF.actions;
+const races = GAME_DATA_REF.races;
+const templates = GAME_DATA_REF.templates || { childhood: {} };
 
   // RNG
   function mulberry32(a){return function(){var t=a+=0x6D2B79F5;t=Math.imul(t^t>>>15,t|1);t^=t+Math.imul(t^t>>>7,t|61);return((t^t>>>14)>>>0)/4294967296}}
