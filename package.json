@@ -12,5 +12,13 @@
   "type": "commonjs",
   "dependencies": {
     "@google/generative-ai": "^0.24.1"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/seongwonkc/coya-poc.git"
+  },
+  "bugs": {
+    "url": "https://github.com/seongwonkc/coya-poc/issues"
+  },
+  "homepage": "https://github.com/seongwonkc/coya-poc#readme"
 }
