@@ -4,7 +4,8 @@
   "description": "A life simulator about which parts of an outcome were chosen and which were assigned.",
   "main": "index.html",
   "scripts": {
-    "start": "npx serve ."
+    "start": "npx serve .",
+    "simulate": "node tools/simulate.js"
   },
   "keywords": [],
   "author": "Patrick Kim",
@@ -20,5 +21,8 @@
   "homepage": "https://github.com/seongwonkc/coya-poc#readme",
   "dependencies": {
     "@google/genai": "^1.0.0"
+  },
+  "devDependencies": {
+    "jsdom": "^24.1.3"
   }
 }

@@ -332,7 +332,8 @@ button {
   display: flex;
   flex-direction: column;
   gap: 11px;
-  scroll-behavior: smooth;
+  /* No smooth scrolling: a burst of entries restarts the animation and can
+     leave the new decision card offscreen. */
 }
 
 .entry {
@@ -701,3 +702,62 @@ table.cond tr:last-child td { border-bottom: none; }
     scroll-behavior: auto !important;
   }
 }
+
+/* ── Stage-life additions ─────────────────────────────────────────────────── */
+.bar-key {
+  width: 52px;
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-faint);
+}
+.stat-val.worse { color: var(--bad); }
+.stat-key { white-space: nowrap; }
+/* On a phone the icons carry the labels; the numbers need the room. */
+@media (max-width: 420px) {
+  .stat-key { display: none; }
+}
+
+.skip-btn {
+  width: 100%;
+  padding: 10px;
+  margin: -2px 0 10px;
+  background: var(--panel-2);
+  border: 1px solid var(--accent);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+}
+.skip-btn:hover { background: var(--bg); }
+.more-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+.decision > .age-tag { margin-bottom: 4px; }
+
+.entry.summary {
+  background: var(--panel-2);
+  border-color: var(--accent);
+  padding: 16px 14px;
+}
+.entry.summary h3 {
+  margin: 0 0 10px;
+  font-family: var(--pixel);
+  font-size: 17px;
+}
+.entry.summary h4 {
+  font-family: var(--pixel);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--accent);
+  margin: 18px 0 8px;
+}
+.entry.summary p { margin: 12px 0 0; font-size: 12.5px; line-height: 1.6; }
+.decisions {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--ink-dim);
+}
+.decisions li { margin-bottom: 6px; }
+.decisions strong { color: var(--ink); font-weight: 600; }

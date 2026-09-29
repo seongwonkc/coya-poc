@@ -15,7 +15,7 @@
     <section id="creation" class="screen">
       <div class="creation-inner">
         <h1>Choose Your<br>American Adventure</h1>
-        <p class="tagline">A life runs from birth to whenever it stops. Some of it you pick.</p>
+        <p class="tagline">A life from birth to retirement. You make the decisions. The dice decide the rest.</p>
 
         <label for="nameInput">Name</label>
         <input id="nameInput" placeholder="Frank" autocomplete="off" />
@@ -67,7 +67,7 @@
           </div>
           <div class="stat">
             <span class="stat-icon" data-icon="money"></span>
-            <span class="stat-key">Money</span>
+            <span class="stat-key">Net worth</span>
             <span id="statWealth" class="stat-val">$0</span>
           </div>
         </div>
@@ -75,16 +75,19 @@
         <div class="bars">
           <div class="bar-row">
             <span class="stat-icon" data-icon="health"></span>
+            <span class="bar-key">Health</span>
             <div class="bar"><i id="barHealth" class="fill health"></i></div>
             <span id="statHealth" class="bar-val">100</span>
           </div>
           <div class="bar-row">
             <span class="stat-icon" data-icon="smarts"></span>
+            <span class="bar-key">Smarts</span>
             <div class="bar"><i id="barSmarts" class="fill smarts"></i></div>
             <span id="statSmarts" class="bar-val">50</span>
           </div>
           <div id="addictionRow" class="bar-row hidden">
             <span class="stat-icon" data-icon="substance"></span>
+            <span class="bar-key">Habit</span>
             <div class="bar"><i id="barAddiction" class="fill addiction"></i></div>
             <span id="statAddiction" class="bar-val">0</span>
           </div>
@@ -96,8 +99,9 @@
       <footer class="dock">
         <button id="ageUpBtn" class="age-btn">
           <span class="tab-icon" data-icon="age"></span>
-          <span>Age Up</span>
+          <span>Age up</span>
         </button>
+        <button id="skipBtn" class="skip-btn hidden">Skip ahead</button>
 
         <!-- Secondary. The stage decision is the main choice; these are extras. -->
         <button id="moreBtn" class="more-btn" aria-expanded="false" aria-controls="tabBar">

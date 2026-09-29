@@ -20,23 +20,23 @@
 const { GoogleGenAI } = require('@google/genai');
 
 // ── Closed vocabularies. Anything outside these is rejected. ────────────────
-const KINDS = new Set(['stage_choice', 'childhood', 'year_event']);
-const IDENTITIES = new Set(['White', 'Black', 'Hispanic / Latino', 'Asian', 'Native American']);
-const JOBS = new Set(['unemployed', 'entry', 'apprentice', 'journeyman', 'service', 'salaried', 'senior', 'gig']);
-const EDU = new Set(['cc_enrolled', 'cc_part_time', 'state_university', 'elite_university']);
-const CIRC = {
-  schoolFunding: new Set(['under', 'moderate', 'well']),
-  household: new Set(['low', 'lower_middle', 'middle', 'upper']),
-  neighborhood: new Set(['high_stress', 'mixed', 'stable']),
-  familySupport: new Set(['none', 'thin', 'solid']),
-  healthCoverage: new Set(['uninsured', 'medicaid', 'employer'])
-};
+// Job, education and choice ids come from the same data file the game runs on,
+// so the allow-lists cannot drift from what the engine can emit. They are
+// still closed sets: a caller can only name an id that already exists there.
+const GAME = require('../../data.js');
 
-// Choice ids the engine can emit. Closed set — no free text reaches the model.
-const CHOICES = new Set([
-  'college', 'work', 'military', 'nothing',
-  'college_elite', 'college_state', 'college_community'
-]);
+const KINDS = new Set(['stage_choice']);
+const IDENTITIES = new Set(Object.values(GAME.identities).map((i) => i.label));
+const JOBS = new Set(Object.keys(GAME.jobs));
+const EDU = new Set(Object.keys(GAME.education));
+const CIRC = {};
+for (const [track, spec] of Object.entries(GAME.circumstance)) CIRC[track] = new Set(spec.levels);
+
+const CHOICES = new Set();
+for (const [sid, stage] of Object.entries(GAME.stages)) {
+  for (const opt of stage.options || []) CHOICES.add(sid + '.' + opt.id);
+}
+for (const tier of GAME.collegeTiers) CHOICES.add('college.' + tier.id);
 
 // Human phrasings for the structured values, so the prompt stays readable
 // without ever interpolating caller text.
@@ -45,9 +45,7 @@ const SAY = {
   household: { low: 'a low-income household', lower_middle: 'a lower-middle-income household', middle: 'a middle-income household', upper: 'an upper-income household' },
   neighborhood: { high_stress: 'a heavily policed neighbourhood', mixed: 'a mixed neighbourhood', stable: 'a stable, lightly policed neighbourhood' },
   familySupport: { none: 'no family financial cushion', thin: 'a thin family cushion', solid: 'a solid family cushion' },
-  healthCoverage: { uninsured: 'no health coverage', medicaid: 'public health coverage', employer: 'employer health coverage' },
-  job: { unemployed: 'no job', entry: 'an entry-level job', apprentice: 'a union apprenticeship', journeyman: 'work as a journeyman tradesman', service: 'military service', salaried: 'a salaried professional job', senior: 'a senior professional job', gig: 'gig and contract work' },
-  education: { cc_enrolled: 'community college', cc_part_time: 'community college part-time', state_university: 'a state university', elite_university: 'an elite private university' }
+  healthCoverage: { uninsured: 'no health coverage', medicaid: 'public health coverage', employer: 'employer health coverage' }
 };
 
 // ── Rate limiting (per instance, best-effort) ───────────────────────────────
@@ -103,7 +101,7 @@ exports.handler = async function (event) {
   if (b.choice !== null && b.choice !== undefined && !CHOICES.has(b.choice)) return bad('Unknown choice');
   if (!IDENTITIES.has(b.identity)) return bad('Unknown identity');
   if (!JOBS.has(b.job)) return bad('Unknown job');
-  if (b.education && !EDU.has(b.education)) return bad('Unknown education');
+  if (!EDU.has(b.education)) return bad('Unknown education');
 
   const age = Number(b.age);
   if (!Number.isInteger(age) || age < 0 || age > 120) return bad('Age out of range');
@@ -128,8 +126,8 @@ exports.handler = async function (event) {
   const facts = [
     `${name} is ${age}.`,
     `They grew up in ${SAY.household[c.household]} in ${SAY.neighborhood[c.neighborhood]}, attending ${SAY.schoolFunding[c.schoolFunding]}, with ${SAY.familySupport[c.familySupport]} and ${SAY.healthCoverage[c.healthCoverage]}.`,
-    `They currently have ${SAY.job[b.job]}.`,
-    b.education ? `They have attended ${SAY.education[b.education]}.` : null,
+    `They currently have ${GAME.jobs[b.job].phrase}.`,
+    `They hold ${GAME.education[b.education].phrase}.`,
     b.hasRecord === true ? 'They have a criminal record.' : null,
     resolved ? `What just happened: ${resolved}` : null
   ].filter(Boolean).join(' ');

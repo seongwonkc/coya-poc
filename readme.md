@@ -3,11 +3,14 @@
 Built by **Patrick Kim** — Governor's Academy, Class of 2027.
 
 A life simulator about which parts of an outcome were chosen and which were
-assigned. You create a character, live through childhood, and then play out
-adulthood a year at a time — school, work, money, housing, health, substances,
-the justice system.
+assigned. You create a character, make two decisions in high school, and then
+live from eighteen to retirement at sixty-five through a series of decisions —
+college, work, housing, a home, your health — with the years in between played
+out automatically: pay, rent, debt, layoffs, police stops, emergencies.
 
-Static site. No build step, no backend, no network calls. Open `index.html`.
+Static site, no build step. Open `index.html`, or `npm start`. The only network
+call is the optional narration function described below; without it the game
+plays the same on its written text.
 
 ---
 
@@ -58,8 +61,10 @@ independent when in reality they arrive together, and nothing here is causal.
 |---|---|
 | `index.html` | Shell — HUD, event feed, action dock, sheets |
 | `style.css` | All styling; icon slots bound via `[data-icon]` |
-| `data.js` | Model parameters, distributions, actions, events, prose templates |
-| `script.js` | Engine — rolls, odds, ageing loop, rendering |
+| `data.js` | Model parameters, distributions, stages, jobs, actions, events, prose |
+| `script.js` | Engine — rolls, odds, stages, the yearly ledger, rendering |
+| `tools/simulate.js` | Headless playthroughs for testing and measuring outcomes |
+| `netlify/functions/narrate.js` | Optional AI narration endpoint |
 | `assets/icons/` | 48×48 pixel icons, displayed at 24px (exact 2:1) |
 | `assets/icons/raw/` | Unmodified generator output, before contrast lifting |
 
@@ -72,22 +77,44 @@ the panel background. Originals are kept in `raw/` so the step is reversible.
 
 ## Life stages
 
-Play is not a free-form menu. At a stage age the game stops and asks one
-question with a small number of answers, and ageing is blocked until it is
-answered. At eighteen there are exactly four: college, a job, the military, or
-nothing. Choosing college opens a second card listing the three tiers.
+Play is not a free-form menu. A life is a sequence of stage decisions defined
+in `stages` in `data.js`. At each one the game stops and asks one question with
+a small number of answers, and ageing is blocked until it is answered.
 
-**Closed doors are content.** A tier or path you cannot take still appears, with
-the reason stated in the player's own terms — "your school offered no AP or
+| When | Decision |
+|---|---|
+| 14 | How to spend high school (hardest classes, a job, a team, coast) |
+| 16 | How to prepare for college (tutor, prep course, self-study, more shifts) |
+| 18 | College, a job, a union apprenticeship, the military, or nothing |
+| On graduating | Professional jobs, or whatever is hiring |
+| On a two-year degree | Transfer to a state university, or technician work |
+| When an enlistment ends | Re-enlist, GI Bill, or a civilian job |
+| When out of work | Look for work, apply higher, enroll, or wait |
+| 25 | Your own place, roommates, or stay home |
+| 30 | Promotion, a better job, night school, a business, or stay |
+| 33 | Buy a home, or keep renting |
+| 40, 50 | Health, retraining, saving |
+| 65 | Retirement, and the end-of-life summary |
+
+Age Up plays one year; "Skip ahead" plays years until the next decision, and
+stops early when something happens you'd want to respond to (a layoff, an
+arrest, leaving college). The "Other things you could do" menu holds actions
+for in between — a doctor, a side hustle, a diversion program — each usable
+once a year.
+
+**Closed doors are content.** A choice you cannot take still appears, with the
+reason stated in the player's own terms — "your school offered no AP or
 honours courses, and the application reads that as you" — rather than being
-silently absent. Which doors are open is the argument the sim is making, so
-hiding the closed ones would throw it away.
+silently absent. A rejection closes that door for the year and leaves the
+others open.
 
 Gates live in `STAGE_GATES` in `script.js`. They are deliberately tuned so that
 disadvantage is a headwind rather than a wall: state universities are open to
-nearly everyone, and elite admission is the gated one. An earlier tuning locked
-under-resourced students out of state university entirely, which is both wrong
-and worse drama.
+nearly everyone, and elite admission is the gated one.
+
+**The end screen** lists every decision made, how many rolls were tilted
+against the player and how many in their favour, and what the world assigned
+them. It closes by suggesting the same choices with a different identity.
 
 ## AI narration
 
@@ -112,7 +139,9 @@ configured. It sat live for about eleven months before being removed.
 
 The rule that prevents a repeat: **the caller never supplies prompt text.** The
 body carries structured game state, every field is checked against a closed set
-of allowed values, and the prompt is assembled inside the function. There is no
+of allowed values, and the prompt is assembled inside the function. The allowed
+values (jobs, education levels, stage choices) are read from `data.js` itself,
+so adding a stage cannot silently break narration. There is no
 field for prose to land in, so a caller cannot steer the model. The player's
 name is the one free-text value and is stripped to letters and length-capped.
 Also enforced: a 2KB body cap, a per-IP rate limit, capped output tokens, and
@@ -135,43 +164,57 @@ since `netlify.toml` already declares a functions directory.
 
 ## Model notes
 
-- **Employment persists.** Jobs pay every year and raise annually; promotion is
-  a hiring decision, so identity bias applies there too. This matters — a
-  one-shot payout would make hiring bias a rounding error, whereas a recurring
-  salary lets it compound across a career, which is where the real gap lives.
-- **Money cannot go negative.** A shortfall becomes debt, and debt accrues
-  interest at 6%.
-- **A dependent with no income isn't charged rent.** Cost of living only bites
-  once you're living independently.
+- **Money is in today's dollars.** Raises are real raises and costs don't
+  inflate. Earnings are taxed at a flat 20%.
+- **Employment persists.** Jobs pay every year; promotion is a hiring decision,
+  so identity bias applies there too. A one-shot payout would make hiring bias
+  a rounding error; a recurring salary lets it compound across a career, which
+  is where the real gap lives.
+- **Spending rises with income.** Once rent and debt are covered, most of what
+  is left is spent (`lifestyleShare`). Surplus pays down debt before it becomes
+  savings; cash above a small buffer earns a modest return.
+- **Money cannot go negative.** A shortfall becomes debt at 6%. A year in the
+  red with real debt forces a move down — your own place to roommates, then
+  back home if your family can take you; a homeowner sells.
+- **Family money shows up where it does in life:** it pays a share of tuition,
+  absorbs part of each emergency, puts money toward a down payment, fronts a
+  business, and lowers the chance of leaving college without the degree.
+- **Health recovers** a little each year, faster with better coverage.
 
 ## Testing
 
-There is no test runner in the repo. The engine was verified by driving the real
-DOM under jsdom across several hundred lives per identity, checking for runtime
-errors, and by static checks on the data (distributions summing to 1, outcome
-weights summing to 1, every required flag reachable, every template placeholder
-resolvable, every icon slot bound to a file that exists).
+`npm run simulate` plays lives headless through the real page (jsdom, a dev
+dependency), clicking the same buttons a player would. It fails on a runtime
+error, a decision with no open option, a life that never ends, or a `NaN` in
+the feed, and prints outcomes by identity:
 
-Running an identical strategy — always take the best college tier available —
-across 250 lives per identity, ages 18 to 45:
+```
+node tools/simulate.js 150 best     # same ambitious choices every life
+node tools/simulate.js 100 random   # random choices, for finding bugs
+```
 
-| identity | median net worth | records | degrees |
-|---|---|---|---|
-| White | $264,711 | 18 | 233 |
-| Asian | $202,580 | 19 | 242 |
-| Native American | $169,849 | 46 | 220 |
-| Hispanic / Latino | $141,620 | 46 | 228 |
-| Black | $86,305 | 48 | 222 |
+Running the "best" strategy — the same ambitious choices every life — for 150
+lives per identity, eighteen to sixty-five (net worth = cash + home equity −
+debt, in today's dollars):
 
-A 67% wealth gap and 2.7× the criminal records, from the same choices. Note
-that degrees are nearly flat across identities (220–242) while wealth is not:
-everyone got educated, and the gap opened anyway — through admission tier,
-then callbacks, then promotions.
+| identity | median net worth | bachelor's | owns a home | criminal record | died before 65 |
+|---|---|---|---|---|---|
+| White | $1,023,259 | 93% | 61% | 7% | 0% |
+| Asian | $908,635 | 92% | 49% | 13% | 0% |
+| Hispanic / Latino | $810,460 | 80% | 48% | 29% | 1% |
+| Black | $543,299 | 83% | 37% | 27% | 3% |
+| Native American | $505,821 | 84% | 35% | 28% | 7% |
 
-Two caveats. Net worth must be measured as cash *minus* debt: cash is floored
-at zero and shortfalls become debt, so reading the money stat alone hides the
-cost and makes the gap look far smaller than it is. And the ordering across the
-middle identities is not perfectly monotonic with the bias parameters — Native
-American lands above Hispanic despite slightly worse coefficients. Record
-counts track their parameters closely; the wealth medians are noisier than one
-run makes them look.
+The same choices, and roughly half the wealth at the bottom of the table. The
+degree rate barely moves; the gap opens through admission tier, the family
+share of tuition, callbacks, promotions, the down payment, and the record. As
+before: the medians are noisy at this sample size and the ordering of the
+middle rows is not stable run to run, so read the spread, not the rank.
+
+## Multiplayer (planned)
+
+Every player meets the same decisions at the same ages, which is what makes a
+table version possible: a room of players, each with their own identity and
+rolls, advancing stage by stage together while a game master reads the
+decisions aloud, then comparing end screens. The lives counter would move to a
+shared store at the same time.
