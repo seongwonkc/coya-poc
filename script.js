@@ -8,8 +8,7 @@
 //      The bias is the content, so hiding it in the math defeats the exercise.
 //   3. A life is a sequence of stage decisions (data.js `stages`). Age Up runs
 //      the years between them; the life ends at retirement or death.
-//   4. Seeded RNG. The only network call is the optional narration endpoint,
-//      which writes prose about outcomes the engine has already decided.
+//   4. Seeded RNG, no network calls. Every word on screen is written text.
 
 (function () {
   'use strict';
@@ -1222,7 +1221,6 @@
       say(`${ageTag()} <strong>${esc(opt.label)}.</strong> ${esc(text)}${notes.length ? ' <span class="dim">' + notes.join(' ') + '</span>' : ''}`, 'action');
       logDecision(opt.label, text);
     }
-    narrate(ch.pendingStage + '.' + opt.id, text);
     stageDone();
   }
 
@@ -1238,7 +1236,6 @@
       save();
       return;
     }
-    narrate('college.' + tier.id, out.text);
     stageDone();
   }
 
@@ -1330,66 +1327,6 @@
     }
   }
 
-  // ── AI narration ─────────────────────────────────────────────────────────
-  // The engine has already decided what happened before any of this runs. The
-  // model only writes the scene describing a settled outcome — it never picks
-  // an outcome, never sees a probability, and never changes a stat. If the call
-  // fails, is slow, or is disabled, play continues on the written text.
-
-  const AI_ENDPOINT = '/api/narrate';
-  // Only attempt narration where the function can exist.
-  let aiEnabled = !/^(localhost|127\.0\.0\.1)$/.test(location.hostname) || location.port === '8888';
-  let aiFailures = 0;
-
-  // Posts STRUCTURED STATE ONLY — never a caller-supplied prompt. The function
-  // builds the prompt server-side from these fields.
-  async function narrate(choiceId, resolvedText) {
-    if (!aiEnabled) return;
-
-    const slot = document.createElement('div');
-    slot.className = 'entry beat ai-pending';
-    slot.innerHTML = '<span class="ai-dots"><i></i><i></i><i></i></span>';
-    el.feed.insertBefore(slot, el.feed.querySelector('.decision'));
-
-    const body = {
-      kind: 'stage_choice',
-      choice: choiceId,
-      resolved: resolvedText || null,
-      name: ch.name,
-      age: ch.age,
-      identity: D.identities[ch.identity].label,
-      circumstance: Object.assign({}, ch.circumstance),
-      job: ch.job,
-      hasRecord: !!ch.flags.record,
-      education: ch.education
-    };
-
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 12000);
-
-    try {
-      const res = await fetch(AI_ENDPOINT, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-        signal: ctrl.signal
-      });
-      clearTimeout(timer);
-      if (!res.ok) throw new Error('HTTP ' + res.status);
-      const data = await res.json();
-      if (!data.text) throw new Error('empty');
-
-      aiFailures = 0;
-      slot.classList.remove('ai-pending');
-      slot.classList.add('ai-text');
-      slot.innerHTML = esc(data.text);
-    } catch (e) {
-      clearTimeout(timer);
-      slot.remove();                       // fail soft, silently
-      if (++aiFailures >= 3) aiEnabled = false;
-    }
-  }
-
   // ── Lives counter ────────────────────────────────────────────────────────
   // Seeded at 200 and incremented per life started.
   //
@@ -1426,12 +1363,10 @@
     } catch (e) { /* storage unavailable; play continues unsaved */ }
   }
 
-  // Transient UI must not be persisted. An in-flight narration spinner saved
-  // mid-request would be restored as a spinner that never resolves, and the
-  // decision card is rebuilt from ch.pendingStage rather than markup.
+  // The decision card is rebuilt from ch.pendingStage rather than markup.
   function serializeFeed() {
     const clone = el.feed.cloneNode(true);
-    clone.querySelectorAll('.ai-pending, .decision').forEach((n) => n.remove());
+    clone.querySelectorAll('.decision').forEach((n) => n.remove());
     return clone.innerHTML;
   }
 

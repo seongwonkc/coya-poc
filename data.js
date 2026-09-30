@@ -253,7 +253,7 @@ var GAME_DATA = {
   // ===========================================================================
   // EDUCATION
   // ===========================================================================
-  // What a person holds, ranked. `phrase` is used by the narration function.
+  // What a person holds, ranked.
 
   education: {
     hs:           { label: "High school diploma",           phrase: "a high school diploma",                         rank: 0 },
@@ -1155,7 +1155,6 @@ var GAME_DATA = {
   }
 };
 
-// Browser: a global for script.js. Node: the narration function requires this
-// file so its allow-lists come from the same data the game uses.
+// Browser: a global for script.js. Node: requireable for tools and tests.
 if (typeof window !== 'undefined') window.GAME_DATA = GAME_DATA;
 if (typeof module !== 'undefined' && module.exports) module.exports = GAME_DATA;

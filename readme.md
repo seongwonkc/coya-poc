@@ -8,9 +8,8 @@ live from eighteen to retirement at sixty-five through a series of decisions —
 college, work, housing, a home, your health — with the years in between played
 out automatically: pay, rent, debt, layoffs, police stops, emergencies.
 
-Static site, no build step. Open `index.html`, or `npm start`. The only network
-call is the optional narration function described below; without it the game
-plays the same on its written text.
+Static site. No build step, no backend, no network calls. Open `index.html`,
+or `npm start`.
 
 ---
 
@@ -64,7 +63,6 @@ independent when in reality they arrive together, and nothing here is causal.
 | `data.js` | Model parameters, distributions, stages, jobs, actions, events, prose |
 | `script.js` | Engine — rolls, odds, stages, the yearly ledger, rendering |
 | `tools/simulate.js` | Headless playthroughs for testing and measuring outcomes |
-| `netlify/functions/narrate.js` | Optional AI narration endpoint |
 | `assets/icons/` | 48×48 pixel icons, displayed at 24px (exact 2:1) |
 | `assets/icons/raw/` | Unmodified generator output, before contrast lifting |
 
@@ -115,39 +113,6 @@ nearly everyone, and elite admission is the gated one.
 **The end screen** lists every decision made, how many rolls were tilted
 against the player and how many in their favour, and what the world assigned
 them. It closes by suggesting the same choices with a different identity.
-
-## AI narration
-
-The AI writes prose. It does not decide anything.
-
-The engine rolls every outcome and applies every bias multiplier first; the
-model is then handed the settled result and asked for two or three sentences
-describing it. This keeps the odds display, the counterfactuals and the whole
-measurement apparatus true — a probability shown to the player is a probability
-that actually ran. If the call fails, times out, or is disabled, play continues
-on the written templates and the player sees nothing missing. Three consecutive
-failures switch it off for the session.
-
-### The endpoint
-
-`netlify/functions/narrate.js`, exposed at `/api/narrate`.
-
-An earlier version of this project shipped a function that took `userInput` from
-the request body and passed it straight to the model. That is a free,
-unauthenticated LLM for anyone who finds the URL, billed to whatever key is
-configured. It sat live for about eleven months before being removed.
-
-The rule that prevents a repeat: **the caller never supplies prompt text.** The
-body carries structured game state, every field is checked against a closed set
-of allowed values, and the prompt is assembled inside the function. The allowed
-values (jobs, education levels, stage choices) are read from `data.js` itself,
-so adding a stage cannot silently break narration. There is no
-field for prose to land in, so a caller cannot steer the model. The player's
-name is the one free-text value and is stripped to letters and length-capped.
-Also enforced: a 2KB body cap, a per-IP rate limit, capped output tokens, and
-provider errors that are logged but never echoed to the client.
-
-If you extend this function, keep that property.
 
 ## The lives counter
 
