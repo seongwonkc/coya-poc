@@ -1671,9 +1671,35 @@
       if (!parsed.ch) return false;
       ch = parsed.ch;
       rng = mulberry32(ch.seed ^ ((ch.timeline.length + ch.age * 131) * 104729));
+      migrate();
       el.feed.innerHTML = parsed.feed || '';
       return true;
     } catch (e) { return false; }
+  }
+
+  // A life saved by an older version may be missing fields added since.
+  // Fill them in rather than failing: a circumstance track that didn't exist
+  // is rolled now, the way it would have been at birth.
+  function migrate() {
+    ch.circumstanceDetail = ch.circumstanceDetail || {};
+    for (const track of Object.keys(D.circumstance)) {
+      if (ch.circumstance[track] && ch.circumstanceDetail[track]) continue;
+      const spec = D.circumstance[track];
+      const cond = spec.conditionOn
+        ? spec.byLevel[ch.circumstance[spec.conditionOn]]
+        : (spec.byIdentity[ch.identity] || spec.population);
+      const landed = ch.circumstance[track] || sampleDist(cond);
+      ch.circumstance[track] = landed;
+      ch.circumstanceDetail[track] = { landed, conditional: cond[landed] || 0, population: spec.population[landed] || 0 };
+    }
+    ch.tally = ch.tally || { against: 0, favor: 0 };
+    ch.decisions = ch.decisions || [];
+    ch.stageQueue = ch.stageQueue || [];
+    ch.stageLocks = ch.stageLocks || {};
+    ch.usedThisYear = ch.usedThisYear || {};
+    ch.education = ch.education || 'hs';
+    ch.housing = ch.housing || 'home';
+    if (ch.pendingStage && !D.stages[ch.pendingStage]) ch.pendingStage = null;
   }
 
   function clearSave() {
@@ -1769,6 +1795,19 @@
       if (e.key === 'Escape') { closeSheet(); el.conditionsPanel.classList.remove('open'); }
     });
 
-    if (load()) { enterGame(); } else { el.creation.classList.remove('hidden'); }
+    // A save that still can't be shown is dropped, never left as a frozen
+    // screen with no buttons.
+    let resumed = false;
+    if (load()) {
+      try { enterGame(); resumed = true; } catch (e) { console.error('saved life could not be resumed:', e); }
+    }
+    if (!resumed) {
+      clearSave();
+      ch = null;
+      el.feed.innerHTML = '';
+      el.game.classList.add('hidden');
+      document.querySelector('.dock').classList.remove('hidden');
+      el.creation.classList.remove('hidden');
+    }
   });
 })();
