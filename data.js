@@ -32,10 +32,10 @@
 //   2. The categories themselves are a simplification. Multiracial identity,
 //      immigration status, disability, gender and region all move these numbers
 //      substantially and none of them are modelled.
-//   3. The circumstance tracks are treated as independent draws. In reality
-//      school funding, neighbourhood and household wealth are strongly
-//      correlated, so this model understates how often disadvantages arrive
-//      together — it is, if anything, too kind.
+//   3. Apart from school funding (which follows the school's makeup), the
+//      circumstance tracks are independent draws. In reality neighbourhood
+//      and household wealth are strongly correlated too, so this model
+//      understates how often disadvantages arrive together.
 //   4. Nothing here is causal. The sim shows how a stacked set of rates
 //      produces a spread in outcomes; it does not estimate any real effect.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -103,6 +103,26 @@ var GAME_DATA = {
 
   circumstance: {
 
+    // Which school you land in. Conditioned on identity: American schools
+    // are still largely sorted by race.
+    schoolMakeup: {
+      label: "Your school's students",
+      levels: ["mostly_white", "mixed", "mostly_poc"],
+      levelLabels: {
+        mostly_white: "Mostly white",
+        mixed: "Mixed",
+        mostly_poc: "Mostly students of color"
+      },
+      population: { mostly_white: 0.30, mixed: 0.40, mostly_poc: 0.30 },
+      byIdentity: {
+        white:    { mostly_white: 0.50, mixed: 0.43, mostly_poc: 0.07 },
+        black:    { mostly_white: 0.05, mixed: 0.37, mostly_poc: 0.58 },
+        hispanic: { mostly_white: 0.05, mixed: 0.35, mostly_poc: 0.60 },
+        asian:    { mostly_white: 0.15, mixed: 0.50, mostly_poc: 0.35 },
+        native:   { mostly_white: 0.20, mixed: 0.40, mostly_poc: 0.40 }
+      }
+    },
+
     schoolFunding: {
       label: "School district",
       levels: ["under", "moderate", "well"],
@@ -114,13 +134,14 @@ var GAME_DATA = {
       // Direction anchored to EdBuild (2019), which reported that predominantly
       // nonwhite districts received substantially less funding than white
       // districts serving comparable numbers of students.
+      // Conditioned on the school's makeup, not on you: the money follows
+      // the district, and the district follows segregation.
       population: { under: 0.22, moderate: 0.45, well: 0.33 },
-      byIdentity: {
-        white:    { under: 0.12, moderate: 0.42, well: 0.46 },
-        black:    { under: 0.43, moderate: 0.41, well: 0.16 },
-        hispanic: { under: 0.40, moderate: 0.43, well: 0.17 },
-        asian:    { under: 0.17, moderate: 0.43, well: 0.40 },
-        native:   { under: 0.48, moderate: 0.38, well: 0.14 }
+      conditionOn: "schoolMakeup",
+      byLevel: {
+        mostly_white: { under: 0.10, moderate: 0.42, well: 0.48 },
+        mixed:        { under: 0.18, moderate: 0.50, well: 0.32 },
+        mostly_poc:   { under: 0.42, moderate: 0.42, well: 0.16 }
       }
     },
 
@@ -242,7 +263,7 @@ var GAME_DATA = {
     childhood: {
       "PreK": "{{name}} is four. The household is {{household_desc}}. Care before kindergarten is {{early_care}}, which decides how many words and how much structure land before anyone is measuring. Health coverage is {{coverage_desc}}, so the first ear infection is either a Tuesday appointment or a decision about money.",
 
-      "Elementary": "Elementary is {{school_quality}} building with {{class_size}} classrooms. {{teacher_line}} Outside of school there are {{enrichment}}. {{hardship_line}} None of this shows up on a report card as anything other than {{name}}'s own performance.",
+      "Elementary": "Elementary is {{school_quality}} building with {{class_size}} classrooms. {{makeup_line}} {{teacher_line}} Outside of school there are {{enrichment}}. {{hardship_line}} None of this shows up on a report card as anything other than {{name}}'s own performance.",
 
       "Middle": "Middle school sorts. Tracking decisions get made here on the basis of test scores, teacher referrals, and which parents know to ask — and they are hard to undo later. Counseling is {{counseling}}. {{peer_line}} {{policing_line}}",
 
@@ -312,6 +333,9 @@ var GAME_DATA = {
     // Once necessities and debt are covered, people spend most of what's left.
     // This is the share of the leftover that goes to spending, not savings.
     lifestyleShare: 0.65,
+    // A record roughly halves callbacks for anyone (Pager 2003); identity's
+    // recordPenalty divides it further.
+    recordPenalty: 0.5,
     debtInterest: 0.06,
     // Cash above a small buffer earns a modest return. This is the mechanism
     // by which having money makes money, so it is kept small and visible.
@@ -385,6 +409,8 @@ var GAME_DATA = {
     s14: {
       age: 14,
       title: "Freshman year",
+      context: ["school", "household", "grades"],
+      fact: ["school_segregation","school_funding"],
       prompt: "High school starts. How you spend the next four years is partly up to you.",
       options: [
         {
@@ -392,6 +418,7 @@ var GAME_DATA = {
           blurb: "Harder now, and it reads well later.",
           gate: "apClasses",
           roll: {
+            goal: "you keep up",
             tags: ["school"], mods: { schoolFunding: 1 },
             outcomes: [
               { id: "thrive", chance: 0.55, text: "You keep up, and the transcript shows it.", effects: { academicPerformance: 5 } },
@@ -422,6 +449,8 @@ var GAME_DATA = {
     s16: {
       age: 16,
       title: "Junior year",
+      context: ["savings", "household", "cushion", "grades", "school"],
+      fact: "ap_access",
       prompt: "The year colleges look at hardest. Everyone is talking about test scores.",
       options: [
         {
@@ -435,6 +464,7 @@ var GAME_DATA = {
           blurb: "$150, Saturday mornings.",
           cost: { wealth: 150 },
           roll: {
+            goal: "your score goes up",
             tags: ["school"], mods: { schoolFunding: 1, familySupport: 1 },
             outcomes: [
               { id: "gain", chance: 0.65, text: "The Saturdays pay off. Your score moves.", effects: { academicPerformance: 3 } },
@@ -447,6 +477,7 @@ var GAME_DATA = {
           id: "self_study", label: "Study on your own", icon: "smarts",
           blurb: "Free, if you can find the time and the books.",
           roll: {
+            goal: "it helps",
             tags: ["school"], mods: { schoolFunding: 1 },
             outcomes: [
               { id: "gain", chance: 0.45, text: "Library books and practice tests at the kitchen table. It works.", effects: { academicPerformance: 2 } },
@@ -467,6 +498,8 @@ var GAME_DATA = {
     s18: {
       age: 18,
       title: "You're eighteen",
+      context: ["savings", "cushion", "grades", "school", "record"],
+      fact: "callbacks",
       prompt: "School is finished. Everyone is asking what you're doing next, and the answer has to be one of these.",
       options: [
         {
@@ -478,6 +511,7 @@ var GAME_DATA = {
           id: "work", label: "Get a job", icon: "work",
           blurb: "Income now, ceiling later.",
           roll: {
+            goal: "a steady job",
             tags: ["job"],
             outcomes: [
               { id: "hired", chance: 0.70, text: "You apply everywhere and take the first thing that calls back. It's steady.", effects: { setJob: "entry" } },
@@ -489,6 +523,7 @@ var GAME_DATA = {
           id: "trade", label: "Apply for a union apprenticeship", icon: "work",
           blurb: "Paid training in a trade. Spots are limited.",
           roll: {
+            goal: "you get a spot",
             tags: ["job", "trade"],
             outcomes: [
               { id: "placed", chance: 0.50, text: "You're placed with a crew. Wages and training start on day one.", effects: { setJob: "apprentice" }, flags_set: { trade: true } },
@@ -502,6 +537,7 @@ var GAME_DATA = {
           blurb: "A wage, training, and education benefits after.",
           gate: "militaryEligible",
           roll: {
+            goal: "you’re in",
             tags: [],
             outcomes: [
               { id: "enlist", chance: 0.90, text: "You enlist. Basic training, then a posting, then a steady wage for the first time.", effects: { enlist: true, health: -2 } },
@@ -521,6 +557,8 @@ var GAME_DATA = {
     bachelor_done: {
       trigger: "graduated_bachelor",
       title: "You graduate",
+      context: ["education", "grades", "debt", "record"],
+      fact: "student_debt",
       prompt: "A degree, a handshake, and a job market that doesn't know you yet.",
       options: [
         {
@@ -528,6 +566,7 @@ var GAME_DATA = {
           blurb: "Salaried roles that ask for a degree.",
           show: { job_not: ["salaried", "senior", "owner"] },
           roll: {
+            goal: "you get an offer",
             tags: ["job"], mods: { academicPerformance: 1 },
             outcomes: [
               { id: "hired", chance: 0.55, text: "An offer comes through, with benefits attached.", effects: { setJob: "salaried" } },
@@ -541,6 +580,7 @@ var GAME_DATA = {
           blurb: "The loans don't wait.",
           show: { job_in: ["unemployed", "gig"] },
           roll: {
+            goal: "a steady job",
             tags: ["job"],
             outcomes: [
               { id: "hired", chance: 0.80, text: "You're hired within the month.", effects: { setJob: "entry" } },
@@ -560,6 +600,7 @@ var GAME_DATA = {
     associate_done: {
       trigger: "graduated_associate",
       title: "Two-year degree",
+      context: ["savings", "cushion", "debt", "grades"],
       prompt: "You finished community college. The credits can carry you further, or into work now.",
       options: [
         {
@@ -567,6 +608,7 @@ var GAME_DATA = {
           blurb: "Two more years for a bachelor's.",
           cost: { wealth: 100 },
           roll: {
+            goal: "you get in",
             tags: ["college"], mods: { academicPerformance: 1 },
             outcomes: [
               { id: "scholar", chance: 0.25, text: "Accepted, with a transfer scholarship.", effects: { enroll: { program: "transfer", tuition: 3000 } } },
@@ -579,6 +621,7 @@ var GAME_DATA = {
           id: "technician", label: "Apply for technician roles", icon: "work",
           blurb: "Jobs that ask for exactly this degree.",
           roll: {
+            goal: "a job in your field",
             tags: ["job"], mods: { academicPerformance: 1 },
             outcomes: [
               { id: "hired", chance: 0.60, text: "A lab, a hospital, a plant floor — someone needs what you just learned.", effects: { setJob: "technician" } },
@@ -598,6 +641,7 @@ var GAME_DATA = {
     service_done: {
       trigger: "enlistment_up",
       title: "Your enlistment is up",
+      context: ["savings", "grades", "record"],
       prompt: "Four years in. Stay, or take what the service promised and go.",
       options: [
         {
@@ -610,6 +654,7 @@ var GAME_DATA = {
           blurb: "Tuition covered. You still have to get in.",
           gate: "stateEligible",
           roll: {
+            goal: "a state university",
             tags: ["college"], mods: { academicPerformance: 1 },
             outcomes: [
               { id: "state", chance: 0.70, text: "A state university takes you. The GI Bill covers tuition.", effects: { setJob: "unemployed", enroll: { program: "state", tuition: 0 } } },
@@ -621,6 +666,7 @@ var GAME_DATA = {
           id: "civilian", label: "Get a civilian job", icon: "work",
           blurb: "Employers say they want veterans.",
           roll: {
+            goal: "a salaried job",
             tags: ["job"],
             outcomes: [
               { id: "salaried", chance: 0.40, text: "A company with a veterans' hiring program makes an offer.", effects: { setJob: "salaried" } },
@@ -636,12 +682,15 @@ var GAME_DATA = {
       trigger: "out_of_work",
       showIf: { job_in: ["unemployed"], enrolled: false },
       title: "Out of work",
+      context: ["savings", "debt", "education", "record", "policing"],
+      fact: "record_callbacks",
       prompt: "No paycheck is coming. What do you do about it?",
       options: [
         {
           id: "look", label: "Look for work", icon: "work",
           blurb: "Anything steady.",
           roll: {
+            goal: "a steady job",
             tags: ["job"],
             outcomes: [
               { id: "steady", chance: 0.65, text: "You're hired. It's steady, and it pays what it pays.", effects: { setJob: "entry" } },
@@ -654,6 +703,7 @@ var GAME_DATA = {
           blurb: "Your credentials say you should qualify.",
           show: { qualified: true },
           roll: {
+            goal: "you get an offer",
             tags: ["job"], mods: { academicPerformance: 1 },
             outcomes: [
               { id: "hired", chance: 0.40, text: "An offer comes through, with benefits attached.", effects: { setJob: "salaried" } },
@@ -669,6 +719,17 @@ var GAME_DATA = {
           resolve: { text: "You enroll. Placement testing puts you in two remedial courses.", effects: { enroll: { program: "community", tuition: 1800 } } }
         },
         {
+          id: "off_books", label: "Make money off the books", icon: "justice",
+          blurb: "Someone always needs a seller.",
+          roll: {
+            arrestRisk: 2.5,
+            outcomes: [
+              { id: "clean", text: "A year of cash, and nobody stops you.", effects: { wealth: 9000 } },
+              { id: "caught", caught: true, text: "A stop turns into a search, and the search finds it.", effects: { wealth: 4000 } }
+            ]
+          }
+        },
+        {
           id: "wait", label: "Not yet", icon: "age",
           blurb: "Something will turn up.",
           resolve: { text: "You wait. Another year goes by." }
@@ -677,9 +738,76 @@ var GAME_DATA = {
     },
 
     // ─── ADULTHOOD ──────────────────────────────────────────────────────────
+    // ─── THE OFFER, AND WHAT HAPPENS IF YOU'RE CAUGHT ───────────────────────
+    s20: {
+      age: 20,
+      title: "The offer",
+      prompt: "Someone you know is making real money selling weed and pills. They offer you a cut, about $750 a month, to sell for them this year.",
+      context: ["savings", "debt", "policing", "record"],
+      fact: "drug_arrests",
+      options: [
+        {
+          id: "sell", label: "Take the offer", icon: "justice",
+          blurb: "Same work, same risk anywhere. Who gets caught is not the same.",
+          roll: {
+            arrestRisk: 2.5,
+            outcomes: [
+              { id: "clean", text: "A year of cash. Nobody stops you.", effects: { wealth: 9000 } },
+              { id: "caught", caught: true, text: "Six months in, a stop turns into a search, and the search finds it.", effects: { wealth: 4000 } }
+            ]
+          }
+        },
+        {
+          id: "no", label: "Say no", icon: "age",
+          blurb: "Keep doing what you're doing.",
+          resolve: { text: "You say no. The money would have been real." }
+        }
+      ]
+    },
+
+    charged: {
+      trigger: "charged",
+      title: "You're charged",
+      prompt: "Bail is set at $2,500. Your public defender has ninety other cases and ten minutes for yours. You have to decide how to handle it.",
+      context: ["savings", "cushion", "job", "record"],
+      fact: ["pretrial","bail"],
+      options: [
+        {
+          id: "bail", label: "Post bail and fight it", icon: "justice",
+          blurb: "$2,500 bail (returned if you show up) plus $1,500 for a lawyer.",
+          gate: "bailAffordable",
+          roll: {
+            goal: "the case is dropped",
+            outcomes: [
+              { id: "dismissed", chance: 0.45, text: "You keep your job, show up to every hearing, and the case is dismissed.", effects: { wealth: -1500, familyPays: 1 } },
+              { id: "convicted", chance: 0.55, text: "You fight it and lose. A conviction, a fine, and probation.", effects: { wealth: -2000, familyPays: 1 }, flags_set: { record: true } }
+            ]
+          }
+        },
+        {
+          id: "jail", label: "Wait in jail and fight it", icon: "justice",
+          blurb: "No bail money. Six weeks in county jail before your hearing.",
+          roll: {
+            goal: "the case is dropped",
+            outcomes: [
+              { id: "dismissed", chance: 0.45, text: "Six weeks inside, then the case is dismissed. The job didn't wait.", effects: { loseJob: true, health: -5 } },
+              { id: "convicted", chance: 0.55, text: "Six weeks inside, then a conviction anyway. The job didn't wait either.", effects: { loseJob: true, health: -5, wealth: -500 }, flags_set: { record: true } }
+            ]
+          }
+        },
+        {
+          id: "plea", label: "Take the plea deal", icon: "conditions",
+          blurb: "Plead guilty to a lesser charge and go home tonight.",
+          resolve: { text: "You plead guilty to a lesser charge and go home tonight, with a record and a year of probation.", effects: { wealth: -500 }, flags_set: { record: true } }
+        }
+      ]
+    },
+
     s25: {
       age: 25,
       title: "A place of your own",
+      context: ["income", "savings", "cushion", "record"],
+      fact: "homeownership",
       prompt: "You're twenty-five and still at home. Where do you live now?",
       showIf: { housing_in: ["home"] },
       options: [
@@ -688,6 +816,7 @@ var GAME_DATA = {
           blurb: "First month, last month, deposit, background check.",
           gate: "canRent",
           roll: {
+            goal: "you’re approved",
             tags: ["housing"], mods: { hiring: 1 },
             outcomes: [
               { id: "leased", chance: 0.60, text: "Approved. The deposit clears out your savings.", effects: { housing: "own", wealth: -2400, familyPays: 0.5 } },
@@ -712,6 +841,8 @@ var GAME_DATA = {
     s30: {
       age: 30,
       title: "Thirty",
+      context: ["job", "income", "education", "debt"],
+      fact: "callbacks_large",
       prompt: "Most careers have a shape by now. Is this one worth pushing on?",
       options: [
         {
@@ -719,6 +850,7 @@ var GAME_DATA = {
           blurb: "Ask for the next rung.",
           show: { job_in: ["gig", "entry", "apprentice", "technician", "salaried"] },
           roll: {
+            goal: "you get it",
             tags: ["job"],
             outcomes: [
               { id: "promoted", chance: 0.35, text: "You get it.", effects: { promote: true } },
@@ -732,6 +864,7 @@ var GAME_DATA = {
           blurb: "Salaried roles elsewhere.",
           show: { qualified: true, job_not: ["salaried", "senior", "owner", "journeyman"] },
           roll: {
+            goal: "you get an offer",
             tags: ["job"], mods: { academicPerformance: 1 },
             outcomes: [
               { id: "hired", chance: 0.40, text: "An offer comes through, with benefits attached.", effects: { setJob: "salaried" } },
@@ -752,6 +885,7 @@ var GAME_DATA = {
           show: { job_not: ["owner"] },
           gate: "businessCapital",
           roll: {
+            goal: "it survives",
             tags: ["lending"], mods: { familySupport: 1 },
             outcomes: [
               { id: "works", chance: 0.40, text: "The business finds customers. By the end of the year it pays you.", effects: { wealth: -5000, familyPays: 1, setJob: "owner" } },
@@ -770,6 +904,8 @@ var GAME_DATA = {
     s33: {
       age: 33,
       title: "Buy a home?",
+      context: ["savings", "downPayment", "income", "record"],
+      fact: "mortgage_denial",
       prompt: "Owning is how most families build wealth. Getting in the door takes a down payment and a lender's yes.",
       showIf: { homeowner: false },
       options: [
@@ -778,6 +914,7 @@ var GAME_DATA = {
           blurb: "$20,000 down on a $240,000 house.",
           gate: "downPayment",
           roll: {
+            goal: "you’re approved",
             tags: ["lending"],
             outcomes: [
               { id: "approved", chance: 0.60, text: "Approved. You get the keys on a Friday.", effects: { buyHome: { higherRate: false } } },
@@ -797,12 +934,15 @@ var GAME_DATA = {
     s40: {
       age: 40,
       title: "Forty",
+      context: ["coverage", "health", "job"],
+      fact: "pain",
       prompt: "The body starts sending notices. So does the job market.",
       options: [
         {
           id: "checkup", label: "Get the check-up you keep putting off", icon: "health",
           blurb: "Whether it helps depends on who's listening.",
           roll: {
+            goal: "they catch it",
             tags: ["health"], mods: { coverage: 1 },
             outcomes: [
               { id: "caught", chance: 0.55, text: "They find something early and treat it.", effects: { health: 10, wealth: -600, medical: true } },
@@ -817,6 +957,7 @@ var GAME_DATA = {
           show: { job_not: ["senior", "owner", "journeyman"] },
           cost: { wealth: 3000 },
           roll: {
+            goal: "a salaried job",
             tags: ["job"], mods: { academicPerformance: 1 },
             outcomes: [
               { id: "hired", chance: 0.35, text: "The certificate lands you a salaried role.", effects: { setJob: "salaried" } },
@@ -835,6 +976,8 @@ var GAME_DATA = {
     s50: {
       age: 50,
       title: "Fifty",
+      context: ["savings", "debt", "health", "coverage"],
+      fact: "wealth_gap",
       prompt: "Your industry is changing faster than you are. Fifteen working years left.",
       options: [
         {
@@ -846,6 +989,7 @@ var GAME_DATA = {
           id: "checkup", label: "Take your health seriously", icon: "health",
           blurb: "Doctor, diet, the works.",
           roll: {
+            goal: "it works",
             tags: ["health"], mods: { coverage: 1 },
             outcomes: [
               { id: "good", chance: 0.60, text: "A doctor who listens, a plan you can follow.", effects: { health: 12, wealth: -800, medical: true } },
@@ -869,6 +1013,7 @@ var GAME_DATA = {
   // A closed tier still shows, with the reason — the closed doors are content.
   // Tuition is per year; family pays its share (see engine) and the rest is
   // cash or debt.
+  collegeFact: "elite_access",
   collegeTiers: [
     {
       id: "elite",
@@ -877,8 +1022,8 @@ var GAME_DATA = {
       gate: "eliteEligible",
       cost: { wealth: 500 },
       outcomes: [
-        { id: "aid", chance: 0.30, text: "Accepted, with need-based aid that covers most of it.", effects: { enroll: { program: "elite", tuition: 4000 } } },
-        { id: "no_aid", chance: 0.30, text: "Accepted. The aid letter covers far less than you hoped.", effects: { enroll: { program: "elite", tuition: 20000 } } },
+        { id: "aid", tag: "With aid", chance: 0.30, text: "Accepted, with need-based aid that covers most of it.", effects: { enroll: { program: "elite", tuition: 4000 } } },
+        { id: "no_aid", tag: "Without aid", chance: 0.30, text: "Accepted. The aid letter covers far less than you hoped.", effects: { enroll: { program: "elite", tuition: 20000 } } },
         { id: "reject", chance: 0.40, text: "Rejected. No reason is given, and none is owed.", retry: true }
       ]
     },
@@ -889,8 +1034,8 @@ var GAME_DATA = {
       gate: "stateEligible",
       cost: { wealth: 200 },
       outcomes: [
-        { id: "grant", chance: 0.30, text: "Accepted with a need-based grant.", effects: { enroll: { program: "state", tuition: 3000 } } },
-        { id: "accept", chance: 0.40, text: "Accepted. Tuition will stretch everything you have.", effects: { enroll: { program: "state", tuition: 11000 } } },
+        { id: "grant", tag: "With a grant", chance: 0.30, text: "Accepted with a need-based grant.", effects: { enroll: { program: "state", tuition: 3000 } } },
+        { id: "accept", tag: "Without a grant", chance: 0.40, text: "Accepted. Tuition will stretch everything you have.", effects: { enroll: { program: "state", tuition: 11000 } } },
         { id: "reject", chance: 0.30, text: "Rejected. You reassess.", retry: true }
       ]
     },
@@ -901,8 +1046,8 @@ var GAME_DATA = {
       gate: "always",
       cost: { wealth: 50 },
       outcomes: [
-        { id: "accepted", chance: 0.85, text: "Enrolled, after a placement test that puts you in two remedial courses.", effects: { enroll: { program: "community", tuition: 1800 } } },
-        { id: "part_time", chance: 0.15, text: "Enrolled part-time, around a work schedule. It will take three years.", effects: { enroll: { program: "community", tuition: 1200, years: 3 } } }
+        { id: "accepted", tag: "Full-time", chance: 0.85, text: "Enrolled, after a placement test that puts you in two remedial courses.", effects: { enroll: { program: "community", tuition: 1800 } } },
+        { id: "part_time", tag: "Part-time", chance: 0.15, text: "Enrolled part-time, around a work schedule. It will take three years.", effects: { enroll: { program: "community", tuition: 1200, years: 3 } } }
       ]
     }
   ],
@@ -1106,6 +1251,96 @@ var GAME_DATA = {
         { id: "roommates", chance: 0.20, text: "Nothing alone you can afford. You find a room in a shared place.", effects: { housing: "roommates", wealth: -800 } },
         { id: "screened_out", chance: 0.20, text: "The application is declined after the background check.", effects: { wealth: -60, health: -2 } }
       ]
+    }
+  },
+
+  // ===========================================================================
+  // REAL WORLD — one-line facts shown on decision cards
+  // ===========================================================================
+  // Unlike every number above, these ARE statistics. Each was checked against
+  // its primary source (2026-10-02); keep the wording as close to the source
+  // as possible, and re-check before changing a figure.
+
+  facts: {
+    school_segregation: {
+      text: "In 2022, 60% of Black and 60% of Hispanic students attended public schools where at least 75% of students were students of color. For White students it was 7%.",
+      source: "NCES, Condition of Education (2024)",
+      url: "https://nces.ed.gov/programs/coe/indicator/cge/racial-ethnic-enrollment"
+    },
+    school_funding: {
+      text: "Districts that mostly serve students of color receive $23 billion less a year than mostly white districts serving the same number of students.",
+      source: "EdBuild, $23 Billion (archived)",
+      url: "http://web.archive.org/web/20241126045020/https://edbuild.org/content/23-billion"
+    },
+    ap_access: {
+      text: "About 35% of high schools where most students are Black or Latino offered calculus, compared with 54% of schools with few Black or Latino students.",
+      source: "U.S. Dept. of Education, Civil Rights Data Collection 2021–22",
+      url: "https://www.ed.gov/media/document/2021-22-crdc-first-look-report-109194.pdf"
+    },
+    callbacks: {
+      text: "In a famous experiment, identical résumés with White-sounding names got 50% more callbacks than ones with Black-sounding names.",
+      source: "Bertrand & Mullainathan, American Economic Review (2004)",
+      url: "https://www.aeaweb.org/articles?id=10.1257/0002828042002561"
+    },
+    callbacks_large: {
+      text: "Applications sent to 108 of America's largest employers: distinctively Black names were contacted about 9% less often than otherwise identical White-named ones.",
+      source: "Kline, Rose & Walters, NBER (2022)",
+      url: "https://www.nber.org/system/files/working_papers/w29053/w29053.pdf"
+    },
+    record_callbacks: {
+      text: "In a Milwaukee hiring experiment, 34% of White applicants with no record got callbacks, 17% of White applicants with a prison record did, and 14% of Black applicants with no record did.",
+      source: "Pager, American Journal of Sociology (2003)",
+      url: "https://faculty.washington.edu/matsueda/courses/587/readings/Pager%202003%20Mark.pdf"
+    },
+    drug_arrests: {
+      text: "Black and White Americans use marijuana at similar rates, but in 2018 Black people were 3.64 times as likely to be arrested for possessing it.",
+      source: "ACLU, A Tale of Two Countries (2020)",
+      url: "https://www.aclu.org/publications/tale-two-countries-racially-targeted-arrests-era-marijuana-reform"
+    },
+    pretrial: {
+      text: "68% of people held in local jails in 2024 had not been convicted. They were waiting for their case to be decided.",
+      source: "Bureau of Justice Statistics, Jail Inmates in 2024",
+      url: "https://bjs.ojp.gov/library/publications/jail-inmates-2024-statistical-tables/web-report"
+    },
+    bail: {
+      text: "About 9 in 10 felony defendants held in jail before trial had been given bail they couldn't pay.",
+      source: "Bureau of Justice Statistics, large urban counties (2009)",
+      url: "https://bjs.ojp.gov/content/pub/pdf/fdluc09.pdf"
+    },
+    student_debt: {
+      text: "Four years after college, Black graduates owed about $53,000 in student loans on average, almost twice what White graduates owed (about $28,000).",
+      source: "Brookings (2016)",
+      url: "https://www.brookings.edu/articles/black-white-disparity-in-student-loan-debt-more-than-triples-after-graduation/"
+    },
+    elite_access: {
+      text: "Children from the richest 1% of families are more than twice as likely to attend an Ivy-Plus college as middle-class children with the same SAT or ACT scores.",
+      source: "Chetty, Deming & Friedman, Opportunity Insights (2023)",
+      url: "https://opportunityinsights.org/wp-content/uploads/2023/07/CollegeAdmissions_Paper.pdf"
+    },
+    homeownership: {
+      text: "74.5% of White households own their home, compared with 48.1% of Hispanic and 45.4% of Black households.",
+      source: "U.S. Census Bureau, Q2 2026",
+      url: "https://www.census.gov/housing/hvs/files/currenthvspress.pdf"
+    },
+    mortgage_denial: {
+      text: "In 2023, Black applicants were denied conventional home-purchase loans 16.6% of the time and White applicants 5.8% of the time.",
+      source: "Consumer Financial Protection Bureau (2024)",
+      url: "https://www.consumerfinance.gov/data-research/hmda/summary-of-2023-data-on-mortgage-lending/"
+    },
+    pain: {
+      text: "In U.S. emergency rooms, Black patients with acute pain were less likely than White patients to be given pain medication (a review of 14 studies).",
+      source: "Lee et al., American Journal of Emergency Medicine (2019)",
+      url: "https://pubmed.ncbi.nlm.nih.gov/31186154/"
+    },
+    wealth_gap: {
+      text: "In 2022 the typical White family had $285,000 in wealth; the typical Hispanic family had $61,600 and the typical Black family $44,900.",
+      source: "Federal Reserve, Survey of Consumer Finances (2023)",
+      url: "https://www.federalreserve.gov/publications/files/scf23.pdf"
+    },
+    inheritance: {
+      text: "About 30% of White families have received an inheritance or gift, compared with about 10% of Black families and 7% of Hispanic families.",
+      source: "Federal Reserve, FEDS Notes (2020)",
+      url: "https://www.federalreserve.gov/econres/notes/feds-notes/disparities-in-wealth-by-race-and-ethnicity-in-the-2019-survey-of-consumer-finances-20200928.htm"
     }
   },
 

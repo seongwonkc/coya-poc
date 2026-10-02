@@ -78,9 +78,14 @@
   function rollCircumstance(identityKey) {
     const out = {};
     const detail = {};
+    // Tracks roll in order. Most are conditioned on identity; a track with
+    // `conditionOn` is conditioned on an earlier roll instead (school funding
+    // follows the school you landed in, not you).
     for (const track of Object.keys(D.circumstance)) {
       const spec = D.circumstance[track];
-      const cond = spec.byIdentity[identityKey] || spec.population;
+      const cond = spec.conditionOn
+        ? spec.byLevel[out[spec.conditionOn]]
+        : (spec.byIdentity[identityKey] || spec.population);
       const landed = sampleDist(cond);
       out[track] = landed;
       detail[track] = { landed, conditional: cond[landed], population: spec.population[landed] };
@@ -170,7 +175,9 @@
           ? `<span class="better">${lift.toFixed(1)}× the population rate</span>`
           : `<span class="dim">about the population rate</span>`;
       h += `<tr><td>${esc(spec.label)}</td><td><strong>${esc(label)}</strong><br>
-            <small class="dim">${pct(det.conditional)} of people with your identity land here; ${pct(det.population)} of everyone does.</small><br>
+            <small class="dim">${spec.conditionOn
+              ? `${pct(det.conditional)} of ${esc(D.circumstance[spec.conditionOn].levelLabels[ch.circumstance[spec.conditionOn]].toLowerCase())} schools land here; ${pct(det.population)} of all schools do.`
+              : `${pct(det.conditional)} of people with your identity land here; ${pct(det.population)} of everyone does.`}</small><br>
             <small>${liftTxt}</small></td></tr>`;
     }
     h += '</table>';
@@ -250,6 +257,11 @@
       class_size: sfx.classSize,
       counseling: sfx.counseling,
       enrichment: hhx.enrichment,
+      makeup_line: {
+        mostly_white: 'Almost everyone in your class is white.',
+        mixed: 'Your class is a mix of white kids and kids of color.',
+        mostly_poc: 'Almost everyone in your class is a student of color; most white families in the area send their kids somewhere else.'
+      }[ch.circumstance.schoolMakeup],
       teacher_line: roll() < 0.55
         ? 'One teacher takes an interest and it matters more than anything on the curriculum.'
         : 'No one teacher has the bandwidth to notice much.',
@@ -269,8 +281,28 @@
     };
   }
 
+  // The rolls, shown at birth: what landed, and how often it lands for kids
+  // like you compared with everyone. None of it was chosen.
+  function bornCard() {
+    const idLabel = D.identities[ch.identity].label;
+    const good = { schoolMakeup: null, schoolFunding: 'well', household: 'upper', neighborhood: 'stable', familySupport: 'solid', healthCoverage: 'employer' };
+    const bad = { schoolMakeup: null, schoolFunding: 'under', household: 'low', neighborhood: 'high_stress', familySupport: 'none', healthCoverage: 'uninsured' };
+    const chips = Object.keys(D.circumstance).map((t) => {
+      const spec = D.circumstance[t];
+      const det = ch.circumstanceDetail[t];
+      const lvl = det.landed;
+      const who = spec.conditionOn
+        ? `${pct(det.conditional)} of schools like yours · ${pct(det.population)} of all`
+        : `${pct(det.conditional)} of ${idLabel} kids · ${pct(det.population)} of all kids`;
+      const tone = lvl === bad[t] ? 'bad' : lvl === good[t] ? 'good' : '';
+      return chip(spec.label, `${esc(spec.levelLabels[lvl])}<small>${esc(who)}</small>`, tone);
+    });
+    say(`<strong>${esc(ch.name)}</strong> is born. You chose to be ${esc(idLabel)}. Everything below was rolled.` +
+        `<div class="ctx-strip born">${chips.join('')}</div>`, 'beat');
+  }
+
   function runChildhood() {
-    say(`<strong>${esc(ch.name)}</strong> is born.`, 'beat');
+    bornCard();
 
     for (const ph of PHASES) {
       ch.age = ph.start;
@@ -431,6 +463,14 @@
       return { open: true };
     },
 
+    bailAffordable() {
+      const need = Math.max(0, 2500 - Math.round(2500 * effectsFor('familySupport').shockAbsorb));
+      if (ch.wealth < need) {
+        return { open: false, why: `bail is $2,500; you have ${usd(ch.wealth)} and your family can’t cover the rest` };
+      }
+      return { open: true };
+    },
+
     downPayment() {
       const gift = ch.circumstance.familySupport === 'solid' ? E.home.familyGift : 0;
       if (ch.wealth + gift < E.home.down) {
@@ -466,9 +506,11 @@
     return w.map((x) => x / total);
   }
 
-  // Returns the multiplier applied to a roll, plus a human explanation.
-  function biasFor(spec) {
-    const id = D.identities[ch.identity];
+  // The multiplier applied to a roll, plus a human explanation. `idKey` lets
+  // the same roll be priced for a different identity — that comparison is
+  // what the player is shown next to their own odds.
+  function biasFor(spec, idKey) {
+    const id = D.identities[idKey || ch.identity];
     const tags = spec.tags || [];
     const has = (t) => tags.includes(t);
     let m = 1;
@@ -483,10 +525,11 @@
       m *= id.painDiscount;
       why.push(`reported symptoms discounted at ${id.painDiscount.toFixed(2)}×`);
     }
+    // A record costs everyone; it costs some people more (Pager 2003).
     if (ch.flags.record && (has('job') || has('housing') || has('lending'))) {
-      const penalty = 1 / id.recordPenalty;
+      const penalty = E.recordPenalty / id.recordPenalty;
       m *= penalty;
-      why.push(`record costs you ${penalty.toFixed(2)}× here (${id.recordPenalty.toFixed(2)}× the penalty applied to a White applicant with the same record)`);
+      why.push(`criminal record (${penalty.toFixed(2)}×)`);
     }
     if (ch.addiction >= 40 && (has('job') || has('college'))) {
       m *= 0.85;
@@ -503,13 +546,13 @@
       const lvl = ch.circumstance.schoolFunding;
       const b = lvl === 'well' ? 1.12 : lvl === 'moderate' ? 1.0 : 0.88;
       m *= b;
-      if (b !== 1) why.push(`${lvl === 'well' ? 'well' : 'under'}-resourced schooling (${b.toFixed(2)}×)`);
+      if (b !== 1) why.push(`${lvl === 'well' ? 'well' : 'under'}-resourced school (${b.toFixed(2)}×)`);
     }
     if (mods.familySupport) {
       const lvl = ch.circumstance.familySupport;
       const b = lvl === 'solid' ? 1.15 : lvl === 'thin' ? 1.0 : 0.88;
       m *= b;
-      if (b !== 1) why.push(`family cushion (${b.toFixed(2)}×)`);
+      if (b !== 1) why.push(`family money (${b.toFixed(2)}×)`);
     }
     if (mods.coverage) {
       const lvl = ch.circumstance.healthCoverage;
@@ -520,11 +563,59 @@
     if (mods.academicPerformance) {
       const b = 1 + Math.max(-0.2, Math.min(0.25, ch.academicPerformance / 60));
       m *= b;
-      if (Math.abs(b - 1) > 0.02) why.push(`your transcript (${b.toFixed(2)}×)`);
+      if (Math.abs(b - 1) > 0.02) why.push(`your grades (${b.toFixed(2)}×)`);
     }
     if (mods.hiring && ch.flags.record) m *= 0.8;
 
     return { m, why };
+  }
+
+  // Who the player is compared with: a White player sees what the same move
+  // would have given a Black player; everyone else sees a White player.
+  function compareKey() { return ch.identity === 'white' ? 'black' : 'white'; }
+  function whoLabel(spec) {
+    const tags = spec.tags || [];
+    const noun = spec.arrestRisk ? 'seller' : tags.includes('health') ? 'patient'
+      : tags.includes('job') || tags.includes('college') || tags.includes('lending') || tags.includes('housing') ? 'applicant' : 'person';
+    return `A ${D.identities[compareKey()].label} ${noun}`;
+  }
+
+  // Chance of being caught, for a risk roll. Policing is set by the
+  // neighbourhood; who gets stopped in it is set by identity.
+  function arrestP(spec, idKey) {
+    const id = D.identities[idKey || ch.identity];
+    const base = effectsFor('neighborhood').stopBase * spec.arrestRisk;
+    return Math.min(0.85, base * id.stopMultiplier + (ch.flags.record ? 0.05 : 0));
+  }
+
+  // Outcome weights for a roll, as `idKey` would face them.
+  function weightsFor(spec, idKey) {
+    if (spec.arrestRisk) {
+      const p = arrestP(spec, idKey);
+      return spec.outcomes.map((o) => (o.caught ? p : 1 - p));
+    }
+    return tilt(spec.outcomes, biasFor(spec, idKey).m);
+  }
+
+  // { mine, theirs, who, risk } — chance of the best outcome (or of being
+  // caught, for a risk roll) for the player and for the comparison identity.
+  function oddsFor(spec) {
+    const idx = spec.arrestRisk ? spec.outcomes.findIndex((o) => o.caught) : 0;
+    return {
+      mine: weightsFor(spec)[idx],
+      theirs: weightsFor(spec, compareKey())[idx],
+      who: whoLabel(spec),
+      risk: !!spec.arrestRisk
+    };
+  }
+
+  function oddsHtml(spec, goal) {
+    const o = oddsFor(spec);
+    const what = o.risk ? 'chance you get caught' : `chance ${goal || 'it works'}`;
+    if (Math.abs(o.mine - o.theirs) < 0.01) return `<span class="o-you">${pct(o.mine)} ${esc(what)}</span>`;
+    const worse = o.risk ? o.mine > o.theirs : o.mine < o.theirs;
+    return `<span class="o-you ${worse ? 'worse' : 'better'}">${pct(o.mine)} ${esc(what)}</span>` +
+           `<span class="o-them">${esc(o.who)}: ${pct(o.theirs)}</span>`;
   }
 
   function pickOutcome(outcomes, weights) {
@@ -537,35 +628,46 @@
     return outcomes.length - 1;
   }
 
-  function oddsBox(m, base, weights, why) {
-    if (Math.abs(m - 1) <= 0.02) return '';
-    const dir = weights[0] < base[0] ? 'worse' : 'better';
-    let h = `<div class="odds ${dir}">Best outcome: <strong>${pct(weights[0])}</strong>` +
-            ` &middot; unbiased it would have been <strong>${pct(base[0])}</strong>`;
-    if (why.length) h += `<br><small>${esc(why.join('; '))}</small>`;
-    return h + '</div>';
+  // Under eighteen, the family pays its share of a cost and the rest comes
+  // out of your own savings; an adult's shortfall becomes debt.
+  function familyPart(cost) { return ch.age < 18 ? Math.round(cost * familyShare()) : 0; }
+  function payCost(cost) {
+    if (!cost) return;
+    ch.wealth -= cost - familyPart(cost);
+    settleCash();
   }
 
-  // Rolls one tilted outcome and applies it. Every chosen roll goes through here.
+  // Rolls one outcome and applies it. Every chosen roll goes through here.
   function runRoll(spec, title) {
     const notes = [];
-    if (spec.cost && spec.cost.wealth) { ch.wealth -= spec.cost.wealth; settleCash(); }
+    if (spec.cost) payCost(spec.cost.wealth);
 
-    const { m, why } = biasFor(spec);
-    const base = spec.outcomes.map((o) => o.chance);
-    const weights = tilt(spec.outcomes, m);
+    const o = oddsFor(spec);
+    const { why } = biasFor(spec);
+    const weights = weightsFor(spec);
     const out = spec.outcomes[pickOutcome(spec.outcomes, weights)];
 
-    if (m < 0.98) ch.tally.against++;
-    else if (m > 1.02) ch.tally.favor++;
+    // The tally counts only what identity did: same roll, White odds.
+    const white = weightsFor(spec, 'white');
+    const idx = o.risk ? spec.outcomes.findIndex((x) => x.caught) : 0;
+    const diff = o.risk ? white[idx] - weights[idx] : weights[idx] - white[idx];
+    if (diff < -0.01) ch.tally.against++;
+    else if (diff > 0.01) ch.tally.favor++;
 
     applyEffects(out.effects, notes);
     setFlags(out.flags_set);
 
     let html = `${ageTag()} <strong>${esc(title)}.</strong> ${esc(out.text)}`;
     if (notes.length) html += ` <span class="dim">${notes.join(' ')}</span>`;
-    html += oddsBox(m, base, weights, why);
-    say(html, out.retry ? 'bad' : 'action');
+    if (Math.abs(o.mine - o.theirs) >= 0.01) {
+      const worse = o.risk ? o.mine > o.theirs : o.mine < o.theirs;
+      html += `<div class="odds ${worse ? 'worse' : 'better'}">` +
+        (o.risk ? 'Your chance of getting caught' : 'Your chance of the best outcome') +
+        ` was <strong>${pct(o.mine)}</strong>. ${esc(o.who)} making the same choice: <strong>${pct(o.theirs)}</strong>.`;
+      if (why.length && !o.risk) html += `<br><small>${esc(why.join('; '))}</small>`;
+      html += '</div>';
+    }
+    say(html, out.retry || out.caught ? 'bad' : 'action');
     return out;
   }
 
@@ -597,6 +699,10 @@
     const fs = effectsFor('familySupport');
 
     if (fx.setJob) setJob(fx.setJob);
+    if (fx.loseJob && ch.salary > 0) {
+      notes.push(`You lose your job as ${D.jobs[ch.job].title.toLowerCase()}.`);
+      setJob('unemployed');
+    }
     if (fx.promote) {
       const promo = E.promotion[ch.job];
       if (promo) setJob(promo.to);
@@ -870,9 +976,10 @@
     // ── Police contact — the one place identity multiplies a rate directly ─
     const stopP = Math.min(0.6, nb.stopBase * id.stopMultiplier + (ch.flags.record ? 0.05 : 0));
     if (roll() < stopP) {
-      const counter = `<div class="odds worse">Annual stop probability for you: <strong>${pct(stopP)}</strong> &middot; at the neighbourhood's base rate it would be <strong>${pct(Math.min(0.6, nb.stopBase))}</strong></div>`;
-      const showCounter = id.stopMultiplier > 1.02 || ch.flags.record;
-      if (showCounter) ch.tally.against++;
+      const cmp = stopChance(compareKey());
+      const counter = `<div class="odds ${stopP > cmp ? 'worse' : 'better'}">Your chance of being stopped this year: <strong>${pct(stopP)}</strong>. A ${esc(D.identities[compareKey()].label)} person in the same neighbourhood: <strong>${pct(cmp)}</strong>.</div>`;
+      const showCounter = Math.abs(stopP - cmp) >= 0.01;
+      if (stopP > stopChance('white') + 0.005) ch.tally.against++;
       const r = roll();
       if (r < 0.72) {
         ch.health -= 1;
@@ -883,8 +990,8 @@
         say('Stopped and cited. The fine is $220 and the court date is on a workday.' + (showCounter ? counter : ''), 'bad');
       } else {
         ch.health -= 4;
-        setFlags({ record: true, charged: true });
-        say('<strong>Arrested.</strong> Charges filed. This will follow you into every application from here.' + (showCounter ? counter : ''), 'bad');
+        say('<strong>Arrested.</strong> Charges filed.' + (showCounter ? counter : ''), 'bad');
+        triggers.push('charged');
         interrupt = true;
       }
     }
@@ -980,6 +1087,7 @@
       }
       h += '</ol>';
     }
+    h += factHtml(['wealth_gap', 'inheritance']);
     h += '<p class="dim">Play again with a different identity and make the same choices. The choices will be yours both times. The odds won’t.</p>';
     say(h, 'summary');
 
@@ -1001,10 +1109,9 @@
     const nw = netWorth();
     el.statWealth.textContent = (nw < 0 ? '−' : '') + usd(nw);
     el.statWealth.classList.toggle('worse', nw < 0);
-    const smarts = Math.max(0, Math.min(100, 50 + ch.academicPerformance * 2));
-    el.statSmarts.textContent = Math.round(smarts);
+    el.statSmarts.textContent = gradeLetter();
     setBar(el.barHealth, ch.health);
-    setBar(el.barSmarts, smarts);
+    setBar(el.barSmarts, smarts());
 
     if (ch.addiction > 0) {
       el.addictionRow.classList.remove('hidden');
@@ -1084,6 +1191,190 @@
     save();
   }
 
+  // ── Context: what the player is working with ─────────────────────────────
+  // Every decision card opens with the numbers that matter for that decision,
+  // and every option says in plain terms what it costs and what it changes.
+  // A choice is only a real choice if you can see what it's weighed against.
+
+  const GRADE_STEPS = [[90, 'A'], [83, 'A−'], [77, 'B+'], [70, 'B'], [63, 'B−'], [57, 'C+'], [50, 'C'], [43, 'C−'], [35, 'D']];
+  // Grades are relative: an average transcript reads as a B−/C+.
+  const smarts = () => Math.max(0, Math.min(100, 62 + ch.academicPerformance * 2));
+  function gradeLetter() {
+    const s = smarts();
+    for (const [t, l] of GRADE_STEPS) if (s >= t) return l;
+    return 'F';
+  }
+  const familyShare = () => effectsFor('familySupport').shockAbsorb;
+  const lvlLabel = (t) => D.circumstance[t].levelLabels[ch.circumstance[t]];
+  const takeHome = (salary) => Math.round(salary * (1 - E.taxRate) / 12);
+
+  function costOfLiving(housing) {
+    const C = E.costOfLiving;
+    if (housing === 'owner') return C.owner;
+    if (housing === 'own') return C.own;
+    if (housing === 'roommates') return C.roommates;
+    return ch.salary > 0 ? C.home : C.dependent;
+  }
+
+  function stopChance(idKey) {
+    const id = D.identities[idKey || ch.identity];
+    return Math.min(0.6, effectsFor('neighborhood').stopBase * id.stopMultiplier + (ch.flags.record ? 0.05 : 0));
+  }
+
+  function chip(label, value, tone, wide) {
+    return `<div class="ctx ${tone || ''}${wide ? ' wide' : ''}"><span>${esc(label)}</span><strong>${value}</strong></div>`;
+  }
+
+  const CONTEXT = {
+    savings: () => chip('Your savings', usd(ch.wealth), ch.wealth < 500 ? 'bad' : ch.wealth >= 10000 ? 'good' : ''),
+    debt: () => (ch.debt > 0 ? chip('Your debt', usd(ch.debt), 'bad') : chip('Your debt', 'none', 'good')),
+    household: () => {
+      const hh = ch.circumstance.household;
+      return chip('Household income', esc(lvlLabel('household')), hh === 'low' ? 'bad' : hh === 'upper' ? 'good' : '');
+    },
+    cushion: () => {
+      const s = familyShare();
+      return chip('Family can cover', s > 0 ? `${pct(s)} of big bills` : 'nothing', s === 0 ? 'bad' : s >= 0.7 ? 'good' : '');
+    },
+    school: () => {
+      const sfx = effectsFor('schoolFunding');
+      const bad = ch.circumstance.schoolFunding === 'under' || !sfx.apAccess;
+      return chip('Your school', `${esc(lvlLabel('schoolMakeup'))} · ${esc(lvlLabel('schoolFunding').toLowerCase())} · ${sfx.apAccess ? 'AP offered' : 'no AP'}`, bad ? 'bad' : ch.circumstance.schoolFunding === 'well' ? 'good' : '', true);
+    },
+    grades: () => {
+      const s = smarts();
+      return chip('Grades', gradeLetter(), s < 50 ? 'bad' : s >= 70 ? 'good' : '');
+    },
+    record: () => (ch.flags.record ? chip('Criminal record', 'yes', 'bad') : chip('Criminal record', 'none', 'good')),
+    income: () => (ch.salary > 0
+      ? chip('Take-home pay', usd(takeHome(ch.salary)) + '/mo', '')
+      : chip('Income', 'none', 'bad')),
+    job: () => chip('Job', esc(D.jobs[ch.job].title) + (ch.salary ? ' · ' + usd(ch.salary) + '/yr' : ''), ch.salary ? '' : 'bad'),
+    education: () => chip('Education', esc(D.education[ch.education].label), eduRank(ch.education) >= 3 ? 'good' : ''),
+    policing: () => {
+      const mine = stopChance();
+      const theirs = stopChance(compareKey());
+      return chip('Police stops where you live', `${pct(mine)} a year for you · ${pct(theirs)} for a ${esc(D.identities[compareKey()].label)} neighbour`, mine > theirs ? 'bad' : '', true);
+    },
+    coverage: () => {
+      const m = effectsFor('healthCoverage').medicalCostMultiplier;
+      return chip('Health coverage', `${esc(lvlLabel('healthCoverage'))}${m !== 1 ? ` · bills ×${m.toFixed(1)}` : ''}`, m > 1 ? 'bad' : '');
+    },
+    health: () => chip('Health', String(Math.round(ch.health)), ch.health < 50 ? 'bad' : ch.health >= 80 ? 'good' : ''),
+    downPayment: () => {
+      const gift = ch.circumstance.familySupport === 'solid' ? E.home.familyGift : 0;
+      return chip('Down payment needed', usd(E.home.down) + (gift ? ` · family gives ${usd(gift)}` : ' · no family help'), gift ? 'good' : 'bad');
+    }
+  };
+
+  function contextHtml(keys) {
+    const chips = (keys || []).map((k) => CONTEXT[k] && CONTEXT[k]()).filter(Boolean);
+    return chips.length ? `<div class="ctx-strip">${chips.join('')}</div>` : '';
+  }
+
+  // Plain-language consequences of a set of effects.
+  function effectBits(fx) {
+    const b = [];
+    if (!fx) return b;
+    if (fx.setJob) {
+      const j = D.jobs[fx.setJob];
+      b.push(j.salary ? `${j.title} · ${usd(j.salary)}/yr` : j.title);
+    }
+    if (fx.promote) b.push('the next rung and a raise');
+    if (fx.enroll) {
+      const p = D.programs[fx.enroll.program];
+      const yrs = fx.enroll.years || p.years;
+      const t = fx.enroll.tuition;
+      if (t) {
+        const fam = Math.round(t * familyShare());
+        b.push(`tuition ${usd(t)}/yr for ${yrs} yrs` + (fam ? ` · family pays ${usd(fam)}, you owe ${usd(t - fam)}/yr` : ' · you owe all of it') +
+               ` (${usd((t - fam) * yrs)} total)`);
+      } else {
+        b.push(`${yrs} years, tuition covered`);
+      }
+    }
+    if (fx.enlist) b.push(`${E.serviceYears} years · ${usd(D.jobs.service.salary)}/yr`);
+    if (fx.housing) b.push(`living costs ${usd(costOfLiving(fx.housing) / 12)}/mo`);
+    if (fx.buyHome) b.push(`a ${usd(E.home.price)} house · ${usd(E.costOfLiving.owner / 12)}/mo`);
+    if (typeof fx.wealth === 'number' && fx.wealth > 0) b.push(`+${usd(fx.wealth)}`);
+    if (typeof fx.wealth === 'number' && fx.wealth < 0) {
+      let w = -fx.wealth;
+      if (fx.medical) w *= effectsFor('healthCoverage').medicalCostMultiplier;
+      if (fx.familyPays) w *= 1 - fx.familyPays * familyShare();
+      b.push(`costs you ${usd(w)}`);
+    }
+    if (fx.debt > 0) b.push(`+${usd(fx.debt)} debt`);
+    if (fx.academicPerformance) b.push(fx.academicPerformance >= 4 ? 'grades ↑↑' : fx.academicPerformance > 0 ? 'grades ↑' : 'grades ↓');
+    if (fx.health) b.push(fx.health >= 8 ? 'health ↑↑' : fx.health > 0 ? 'health ↑' : fx.health <= -6 ? 'health ↓↓' : 'health ↓');
+    if (fx.loseJob && ch.salary > 0) b.push(`you lose your job (${usd(ch.salary)}/yr)`);
+    return b;
+  }
+
+  function costLine(cost) {
+    const fam = familyPart(cost);
+    const mine = cost - fam;
+    const head = fam ? `Costs ${usd(cost)} · family pays ${usd(fam)}, you pay ${usd(mine)}` : `Costs ${usd(cost)}`;
+    if (!mine) return head;
+    if (ch.wealth >= mine) return `${head} of your ${usd(ch.wealth)}`;
+    return `${head} · you have ${usd(ch.wealth)}, so ${usd(mine - ch.wealth)} goes on debt`;
+  }
+
+  // A gate, plus: a minor can't borrow, so a cost they and their family
+  // can't cover closes the option.
+  function gateFor(opt) {
+    const g = checkGate(opt.gate);
+    if (!g.open) return g;
+    const cost = opt.cost && opt.cost.wealth;
+    if (cost && ch.age < 18 && ch.wealth < cost - familyPart(cost)) {
+      return { open: false, why: `it costs ${usd(cost)}; you have ${usd(ch.wealth)} and your family can’t spare the rest` };
+    }
+    return g;
+  }
+
+  const bitsLine = (bits, cls) => (bits.length ? `<span class="${cls || 'fx'}">${esc(bits.join(' · '))}</span>` : '');
+
+  // What picking this option means, before it's picked.
+  function optionPreview(opt) {
+    const lines = [];
+    if (opt.cost && opt.cost.wealth) lines.push(`<span class="fx cost">${esc(costLine(opt.cost.wealth))}</span>`);
+    if (opt.resolve) {
+      lines.push(bitsLine(effectBits(opt.resolve.effects)));
+      if (opt.resolve.flags_set && opt.resolve.flags_set.record) lines.push('<span class="fx bad">a criminal record</span>');
+    }
+    if (opt.roll) {
+      const spec = opt.roll;
+      lines.push(`<span class="fx-odds">${oddsHtml(spec, spec.goal)}</span>`);
+      if (!spec.arrestRisk) {
+        const base = spec.outcomes[0].chance;
+        const mine = weightsFor(spec)[0];
+        const { why } = biasFor(spec);
+        if (Math.abs(mine - base) >= 0.01 && why.length) {
+          lines.push(`<span class="fx dim">Usually ${pct(base)} · yours: ${esc(why.join(', '))}</span>`);
+        }
+      }
+      const best = spec.outcomes.find((x) => !x.caught) || spec.outcomes[0];
+      const worst = spec.arrestRisk ? spec.outcomes.find((x) => x.caught) : spec.outcomes[spec.outcomes.length - 1];
+      const withRecord = (o) => effectBits(o.effects).concat(o.flags_set && o.flags_set.record ? ['a criminal record'] : []);
+      const bb = withRecord(best);
+      if (bb.length) lines.push(`<span class="fx">If it works: ${esc(bb.join(' · '))}</span>`);
+      if (worst && worst !== best) {
+        const wb = withRecord(worst);
+        const tail = worst.caught ? 'arrested and charged' : wb.length ? wb.join(' · ') : 'nothing changes';
+        lines.push(`<span class="fx dim">${worst.caught ? 'If caught' : 'If not'}: ${esc(tail)}</span>`);
+      }
+    }
+    return lines.filter(Boolean).join('');
+  }
+
+  // One or more verified real-world facts, each with its source.
+  function factHtml(keys) {
+    return [].concat(keys || []).map((key) => {
+      const f = D.facts && D.facts[key];
+      if (!f) return '';
+      return `<p class="realworld"><span class="rw-tag">Real world</span> ${esc(f.text)} <a href="${esc(f.url)}" target="_blank" rel="noopener">${esc(f.source)}</a></p>`;
+    }).join('');
+  }
+
   function renderStage() {
     const stage = D.stages[ch.pendingStage];
     if (!stage) return;
@@ -1100,12 +1391,13 @@
     if (ch.pendingExpand === 'collegeTiers') {
       card.innerHTML =
         `<h3>Which college?</h3>
-         <p class="decision-sub">Where you can go was largely decided before you applied.</p>`;
+         <p class="decision-sub">Where you can go was largely decided before you applied. What it costs depends on what your family can pay.</p>
+         ${contextHtml(stage.context)}`;
       for (const tier of D.collegeTiers) {
         const gate = ch.stageLocks['tier:' + tier.id] || checkGate(tier.gate);
         anyOpen = anyOpen || gate.open;
         list.appendChild(optionButton({
-          label: tier.label, blurb: oddsBlurb(tier), icon: 'school', gate,
+          label: tier.label, preview: tierPreview(tier), icon: 'school', gate,
           onPick: () => pickTier(tier)
         }));
       }
@@ -1115,20 +1407,23 @@
       back.textContent = '← Back';
       back.onclick = () => { ch.pendingExpand = null; renderStage(); save(); };
       card.appendChild(back);
+      card.insertAdjacentHTML('beforeend', factHtml(D.collegeFact));
     } else {
       card.innerHTML =
         `<span class="age-tag">Age ${ch.age}</span>
          <h3>${esc(stage.title)}</h3>
-         <p class="decision-sub">${esc(stage.prompt)}</p>`;
+         <p class="decision-sub">${esc(stage.prompt)}</p>
+         ${contextHtml(stage.context)}`;
       for (const opt of visibleOptions(stage)) {
-        const gate = ch.stageLocks[opt.id] || checkGate(opt.gate);
+        const gate = ch.stageLocks[opt.id] || gateFor(opt);
         anyOpen = anyOpen || gate.open;
         list.appendChild(optionButton({
-          label: opt.label, blurb: optionBlurb(opt), icon: opt.icon, gate,
+          label: opt.label, blurb: opt.blurb, preview: optionPreview(opt), icon: opt.icon, gate,
           onPick: () => pickOption(stage, opt)
         }));
       }
       card.appendChild(list);
+      card.insertAdjacentHTML('beforeend', factHtml(stage.fact));
     }
 
     el.feed.appendChild(card);
@@ -1144,7 +1439,7 @@
     if (!anyOpen && ch.pendingExpand !== 'collegeTiers') stageDone();
   }
 
-  function optionButton({ label, blurb, icon, gate, onPick }) {
+  function optionButton({ label, blurb, preview, icon, gate, onPick }) {
     const b = document.createElement('button');
     b.className = 'decision-option' + (gate.open ? '' : ' locked');
     b.disabled = !gate.open;
@@ -1152,38 +1447,36 @@
       `<span class="tab-icon" data-icon="${icon || 'age'}"></span>
        <span class="decision-text">
          <strong>${esc(label)}</strong>
-         <small>${gate.open ? blurb || '' : esc('Closed — ' + gate.why)}</small>
+         ${gate.open
+           ? `${blurb ? `<small>${esc(blurb)}</small>` : ''}<span class="preview">${preview || ''}</span>`
+           : `<small>${esc('Closed — ' + gate.why)}</small>`}
        </span>`;
     if (gate.open) b.onclick = onPick;
     return b;
   }
 
-  // Blurb plus the biased best-case odds, when the option is a roll.
-  function optionBlurb(opt) {
-    let h = esc(opt.blurb || '');
-    if (opt.roll) {
-      const { m } = biasFor(opt.roll);
-      const w = tilt(opt.roll.outcomes, m);
-      const base = opt.roll.outcomes[0].chance;
-      h += Math.abs(m - 1) > 0.02
-        ? `<br><span class="${w[0] < base ? 'worse' : 'better'}">${pct(w[0])} best case</span> <span class="dim">(unbiased ${pct(base)})</span>`
-        : `<br><span class="dim">${pct(base)} best case</span>`;
-    }
-    return h;
-  }
-
   const TIER_SPEC = { tags: ['college'], mods: { academicPerformance: 1, familySupport: 1 } };
 
-  function oddsBlurb(tier) {
-    const { m } = biasFor(TIER_SPEC);
-    const w = tilt(tier.outcomes, m);
+  function tierSpec(tier) {
+    return Object.assign({ cost: tier.cost, outcomes: tier.outcomes }, TIER_SPEC);
+  }
+
+  // Admission odds against the comparison applicant, then what each
+  // admission outcome would cost this family.
+  function tierPreview(tier) {
+    const spec = tierSpec(tier);
     const admit = (ws) => ws.reduce((s, x, i) => s + (tier.outcomes[i].retry ? 0 : x), 0);
-    const cost = tier.cost && tier.cost.wealth ? ` · $${tier.cost.wealth} to apply` : '';
-    const base = tier.outcomes.map((o) => o.chance);
-    if (Math.abs(m - 1) > 0.02) {
-      return `<span class="${w[0] < base[0] ? 'worse' : 'better'}">${pct(admit(w))} admitted, ${pct(w[0])} ${tier.best}</span> <span class="dim">(unbiased ${pct(admit(base))}, ${pct(base[0])})${cost}</span>`;
+    const mine = admit(weightsFor(spec));
+    const theirs = admit(weightsFor(spec, compareKey()));
+    const lines = [`<span class="fx cost">${esc(costLine(tier.cost.wealth))} to apply</span>`];
+    lines.push(Math.abs(mine - theirs) < 0.01
+      ? `<span class="fx-odds"><span class="o-you">${pct(mine)} chance you get in</span></span>`
+      : `<span class="fx-odds"><span class="o-you ${mine < theirs ? 'worse' : 'better'}">${pct(mine)} chance you get in</span><span class="o-them">${esc(whoLabel(spec))}: ${pct(theirs)}</span></span>`);
+    for (const o of tier.outcomes) {
+      if (o.retry || !o.effects || !o.effects.enroll) continue;
+      lines.push(`<span class="fx">${esc(o.tag || 'If admitted')}: ${esc(effectBits({ enroll: o.effects.enroll }).join(''))}</span>`);
     }
-    return `<span class="dim">${pct(admit(base))} admitted, ${pct(base[0])} ${tier.best}${cost}</span>`;
+    return lines.join('');
   }
 
   function logDecision(choice, outcome) {
@@ -1200,11 +1493,10 @@
     const old = el.feed.querySelector('.decision');
     if (old) old.remove();
 
-    let text;
     if (opt.roll) {
       const out = runRoll(Object.assign({ cost: opt.cost }, opt.roll), opt.label);
-      text = out.text;
       logDecision(opt.label, out.text);
+      if (out.caught) ch.stageQueue.unshift('charged');
       if (out.retry) {
         ch.stageLocks[opt.id] = { open: false, why: 'tried this year, and it didn’t happen' };
         renderStats();
@@ -1214,12 +1506,11 @@
       }
     } else {
       const r = opt.resolve || {};
-      if (opt.cost && opt.cost.wealth) ch.wealth -= opt.cost.wealth;
+      if (opt.cost) payCost(opt.cost.wealth);
       const notes = applyEffects(r.effects);
       setFlags(r.flags_set);
-      text = r.text || '';
-      say(`${ageTag()} <strong>${esc(opt.label)}.</strong> ${esc(text)}${notes.length ? ' <span class="dim">' + notes.join(' ') + '</span>' : ''}`, 'action');
-      logDecision(opt.label, text);
+      say(`${ageTag()} <strong>${esc(opt.label)}.</strong> ${esc(r.text || '')}${notes.length ? ' <span class="dim">' + notes.join(' ') + '</span>' : ''}`, r.flags_set && r.flags_set.record ? 'bad' : 'action');
+      logDecision(opt.label, r.text || '');
     }
     stageDone();
   }
@@ -1227,7 +1518,7 @@
   function pickTier(tier) {
     const old = el.feed.querySelector('.decision');
     if (old) old.remove();
-    const out = runRoll(Object.assign({ cost: tier.cost, outcomes: tier.outcomes }, TIER_SPEC), tier.label);
+    const out = runRoll(tierSpec(tier), tier.label);
     logDecision(tier.label, out.text);
     if (out.retry) {
       ch.stageLocks['tier:' + tier.id] = { open: false, why: 'rejected this year' };
@@ -1246,6 +1537,8 @@
     const locked = !!ch.pendingStage;
     const ended = !!ch.ended;
     el.ageUpBtn.disabled = locked;
+    // While a decision is open the card is the whole screen.
+    document.querySelector('.dock').classList.toggle('hidden', locked);
     el.ageUpBtn.classList.toggle('waiting', locked);
     el.tabBar.classList.toggle('disabled', locked || ended);
     el.moreBtn.disabled = ended;

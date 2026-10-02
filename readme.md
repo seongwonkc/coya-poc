@@ -87,7 +87,9 @@ a small number of answers, and ageing is blocked until it is answered.
 | On graduating | Professional jobs, or whatever is hiring |
 | On a two-year degree | Transfer to a state university, or technician work |
 | When an enlistment ends | Re-enlist, GI Bill, or a civilian job |
-| When out of work | Look for work, apply higher, enroll, or wait |
+| When out of work | Look for work, apply higher, enroll, sell off the books, or wait |
+| 20 | The offer: sell drugs for a year, or say no |
+| When charged | Post bail and fight it, wait in jail and fight it, or take the plea |
 | 25 | Your own place, roommates, or stay home |
 | 30 | Promotion, a better job, night school, a business, or stay |
 | 33 | Buy a home, or keep renting |
@@ -99,6 +101,23 @@ stops early when something happens you'd want to respond to (a layoff, an
 arrest, leaving college). The "Other things you could do" menu holds actions
 for in between — a doctor, a side hustle, a diversion program — each usable
 once a year.
+
+**Every card carries its context.** A decision opens with a strip of the
+numbers it's weighed against — your savings, what your family can cover, your
+school, your grades, your record, the police-stop rate where you live — and
+each option says in plain terms what it costs against what you have, what it
+changes, and your odds next to the odds the same move would have for a White
+player (a White player sees a Black player's). Under eighteen, family pays its
+share of a cost and an option you can't afford closes with the reason. The
+first card of every life shows what was rolled at birth and how often kids with
+your identity land there.
+
+**Real-world notes.** Cards end with one or two facts from primary sources
+(`facts` in `data.js`): school segregation, school funding, calculus access,
+callback experiments, marijuana arrests, pretrial detention, mortgage denials,
+pain treatment, wealth and inheritance. Unlike the game's coefficients these
+are real statistics, each checked against its source on 2026-10-02. Keep the
+wording close to the source and re-check before changing a figure.
 
 **Closed doors are content.** A choice you cannot take still appears, with the
 reason stated in the player's own terms — "your school offered no AP or
@@ -145,6 +164,13 @@ since `netlify.toml` already declares a functions directory.
   absorbs part of each emergency, puts money toward a down payment, fronts a
   business, and lowers the chance of leaving college without the degree.
 - **Health recovers** a little each year, faster with better coverage.
+- **School funding follows the school, not the student.** Identity sets the
+  odds of which school you land in (its racial makeup); the school's makeup
+  sets the odds of its funding.
+- **A record costs everyone** about half their callbacks (Pager 2003), and
+  costs some identities more.
+- **Getting caught** depends on how heavily your neighbourhood is policed and
+  on who gets stopped in it — not on what you did, which is the same.
 
 ## Testing
 
@@ -158,23 +184,21 @@ node tools/simulate.js 150 best     # same ambitious choices every life
 node tools/simulate.js 100 random   # random choices, for finding bugs
 ```
 
-Running the "best" strategy — the same ambitious choices every life — for 150
-lives per identity, eighteen to sixty-five (net worth = cash + home equity −
-debt, in today's dollars):
+Running the "best" strategy — the same ambitious choices every life, always
+saying no to the offer — for 150 lives per identity, eighteen to sixty-five
+(net worth = cash + home equity − debt, in today's dollars):
 
 | identity | median net worth | bachelor's | owns a home | criminal record | died before 65 |
 |---|---|---|---|---|---|
-| White | $1,023,259 | 93% | 61% | 7% | 0% |
-| Asian | $908,635 | 92% | 49% | 13% | 0% |
-| Hispanic / Latino | $810,460 | 80% | 48% | 29% | 1% |
-| Black | $543,299 | 83% | 37% | 27% | 3% |
-| Native American | $505,821 | 84% | 35% | 28% | 7% |
+| White | $984,131 | 93% | 53% | 9% | 1% |
+| Asian | $922,754 | 93% | 56% | 9% | 0% |
+| Hispanic / Latino | $680,268 | 85% | 43% | 13% | 3% |
+| Native American | $515,259 | 79% | 41% | 16% | 3% |
+| Black | $397,018 | 73% | 33% | 29% | 5% |
 
-The same choices, and roughly half the wealth at the bottom of the table. The
-degree rate barely moves; the gap opens through admission tier, the family
-share of tuition, callbacks, promotions, the down payment, and the record. As
-before: the medians are noisy at this sample size and the ordering of the
-middle rows is not stable run to run, so read the spread, not the rank.
+The same choices. The records come entirely from police stops: these lives
+never sold anything. The medians are noisy at this sample size and the order
+of the middle rows is not stable run to run, so read the spread, not the rank.
 
 ## Multiplayer (planned)
 

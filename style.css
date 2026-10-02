@@ -741,3 +741,89 @@ table.cond tr:last-child td { border-bottom: none; }
 }
 .decisions li { margin-bottom: 6px; }
 .decisions strong { color: var(--ink); font-weight: 600; }
+
+/* ── Context on decision cards ────────────────────────────────────────────── */
+/* The numbers a decision is weighed against, shown before it is made. */
+.ctx-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
+  gap: 6px;
+  margin: 0 0 14px;
+}
+.ctx {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 7px 9px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.ctx span {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-faint);
+}
+.ctx strong {
+  font-family: var(--pixel);
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--ink);
+  line-height: 1.35;
+}
+.ctx.bad  { border-color: rgba(242, 85, 90, 0.4); }
+.ctx.bad strong { color: var(--bad); }
+.ctx.good { border-color: rgba(74, 222, 128, 0.35); }
+.ctx.good strong { color: var(--good); }
+
+/* What an option costs and changes */
+.preview { display: flex; flex-direction: column; gap: 3px; margin-top: 6px; }
+.fx {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ink-dim);
+}
+.fx.cost { color: var(--warn); }
+.fx.bad  { color: var(--bad); }
+.fx.dim  { color: var(--ink-faint); }
+.fx-odds { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 12px; }
+.o-you {
+  font-family: var(--pixel);
+  font-weight: 700;
+  color: var(--ink);
+}
+.o-you.worse  { color: var(--bad); }
+.o-you.better { color: var(--good); }
+.o-them { font-family: var(--pixel); color: var(--ink-faint); }
+
+/* Real-world note under a card */
+.realworld {
+  margin: 14px 0 0;
+  padding-top: 11px;
+  border-top: 1px solid var(--line);
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--ink-dim);
+}
+.rw-tag {
+  font-family: var(--pixel);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--accent);
+  margin-right: 4px;
+}
+.realworld a { color: var(--ink-faint); }
+.ctx.wide { grid-column: 1 / -1; }
+.ctx strong small {
+  display: block;
+  margin-top: 3px;
+  font-family: var(--sans);
+  font-weight: 400;
+  font-size: 10.5px;
+  color: var(--ink-faint);
+}
+.ctx-strip.born { margin: 10px 0 0; }
+.realworld + .realworld { margin-top: 8px; padding-top: 0; border-top: none; }

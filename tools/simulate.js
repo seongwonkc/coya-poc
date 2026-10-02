@@ -23,7 +23,8 @@ const BEST = [
   'hardest', 'tutor', 'prep course',
   'apply for professional', 'transfer', 'technician',
   'own place', 'push for a promotion', 'better-paying', 'buy a home',
-  'check-up', 'take your health', 'look for work', 'salaried'
+  'check-up', 'take your health', 'look for work', 'salaried',
+  'say no', 'post bail'
 ];
 
 function makeGame() {
